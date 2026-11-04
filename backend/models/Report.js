@@ -7,8 +7,16 @@ const sequelize = new Sequelize(
   process.env.DB_PASS,
   {
     host: process.env.DB_HOST,
+    port: process.env.DB_PORT || 3306, // Ditambahkan untuk Aiven
     dialect: 'mysql',
-    logging: false, 
+    logging: false,
+    // Ditambahkan untuk menembus keamanan SSL Aiven
+    dialectOptions: {
+      ssl: {
+        require: true,
+        rejectUnauthorized: false 
+      }
+    }
   }
 );
 
@@ -22,7 +30,6 @@ const Report = sequelize.define('Report', {
   jml_hadir: { type: DataTypes.INTEGER, allowNull: false },
   jml_tidak_hadir: { type: DataTypes.INTEGER, allowNull: false },
   foto_url: { type: DataTypes.STRING, allowNull: false },
-  // UBAH: Menjadi tipe TEXT dan bisa dikosongkan (allowNull: true)
   absensi: { type: DataTypes.TEXT, allowNull: true } 
 }, {
   tableName: 'reports',
