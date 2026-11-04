@@ -4,7 +4,10 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { UNITS, GROUPS, SHIFT_LABEL, UNIT_NAMES, unitByName } from '../data/units';
 
-const API = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/reports`;
+// Rute API: otomatis memakai rute relatif /api/reports di Vercel Serverless
+const API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/reports`
+  : '/api/reports';
 
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
@@ -174,7 +177,6 @@ function DetailSheet({ report, onClose, onSaved, onDeleted }) {
       jml_personil: report.jml_personil,
       jml_hadir: report.jml_hadir,
     };
-    // Keterangan tidak hadir berupa teks bebas (format baru); format lama (daftar) tidak ditimpa
     if (!Array.isArray(report.absensi)) base.absensi = report.absensi || '';
     setForm(base);
     setEditing(true);
@@ -396,8 +398,6 @@ export default function Dashboard() {
     }
   };
 
-  // Muat saat dibuka, lalu perbarui otomatis tiap 1 menit.
-  // Jika dasbor dibiarkan terbuka melewati tengah malam, tanggal "hari ini" ikut pindah.
   useEffect(() => {
     fetchReports();
     const t = setInterval(() => {
@@ -437,7 +437,7 @@ export default function Dashboard() {
     };
   }, [byKey, date]);
 
-  // Kepatuhan bulan terpilih (dihitung sampai hari ini)
+  // Kepatuhan bulan terpilih
   const dim = new Date(month.y, month.m + 1, 0).getDate();
   const days = Array.from({ length: dim }, (_, i) => i + 1);
   const monthKey = (d) => `${month.y}-${pad(month.m + 1)}-${pad(d)}`;
@@ -463,7 +463,6 @@ export default function Dashboard() {
       return { y: d.getFullYear(), m: d.getMonth() };
     });
 
-  // Cetak PDF ceklist bulanan, format sama dengan ceklist kertas (unit, lalu baris per shift)
   const exportPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     const { y: yr, m } = month;
@@ -498,7 +497,6 @@ export default function Dashboard() {
       columnStyles: {
         0: { halign: 'center', cellWidth: 7 },
         1: { cellWidth: 50 },
-        // Kolom tanggal 1-31 berada di indeks 2-32; "Keterangan" di indeks 33
         ...Object.fromEntries(nums.map((n) => [n + 1, { halign: 'center', cellWidth: 6.2, fontStyle: 'bold' }])),
         33: { cellWidth: 16 },
       },
@@ -510,7 +508,6 @@ export default function Dashboard() {
       },
     });
 
-    // Tanda tangan hanya di halaman terakhir
     let fy = doc.lastAutoTable.finalY + 7;
     if (fy > 170) {
       doc.addPage();
@@ -541,7 +538,6 @@ export default function Dashboard() {
     );
   }
 
-  // Server tidak terjangkau dan belum ada data: jangan tampilkan "belum melapor" yang menyesatkan
   if (error && reports.length === 0) {
     return (
       <div className="max-w-md mx-auto px-4">
@@ -592,7 +588,6 @@ export default function Dashboard() {
 
       {view === 'hari' ? (
         <div className="mt-4 space-y-4">
-          {/* Pilih tanggal */}
           <div className="flex items-center gap-2">
             <button type="button" aria-label="Hari sebelumnya" className={roundBtn} onClick={() => setDate(shiftDay(date, -1))}>
               <Chevron dir="l" />
@@ -618,7 +613,6 @@ export default function Dashboard() {
             </button>
           )}
 
-          {/* Ringkasan: jawaban utama dalam satu angka */}
           <div className={`${cardCls} p-5`}>
             <p className="text-[34px] font-bold tracking-tight leading-none tabular-nums text-gray-900 dark:text-white">
               {day.full}
