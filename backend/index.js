@@ -1,19 +1,22 @@
 // Simpan di: backend/index.js
 const express = require('express');
 const cors = require('cors');
-const bcrypt = require('bcryptjs'); 
+const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
+// Memaksa bundler Vercel membawa modul mysql2
+require('mysql2');
+
 const { sequelize } = require('./models/Report');
-const { User } = require('./models/User'); 
-const reportRoutes = require('./routes/reportRoutes'); 
-const authRoutes = require('./routes/authRoutes'); 
+const { User } = require('./models/User');
+const reportRoutes = require('./routes/reportRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Inisialisasi koneksi database aman untuk arsitektur serverless
+// Inisialisasi koneksi database untuk serverless
 let isDbInitialized = false;
 async function ensureDbReady() {
   if (isDbInitialized) return;
@@ -38,17 +41,17 @@ async function ensureDbReady() {
   }
 }
 
-// Middleware: pastikan DB sinkron sebelum memproses rute
+// Middleware: pastikan DB terhubung sebelum rute dieksekusi
 app.use(async (req, res, next) => {
   await ensureDbReady();
   next();
 });
 
 // Endpoint API
-app.use('/api/reports', reportRoutes); 
-app.use('/api/auth', authRoutes); 
+app.use('/api/reports', reportRoutes);
+app.use('/api/auth', authRoutes);
 
-// Endpoint cek kesehatan server
+// Endpoint tes
 app.get('/api', (req, res) => {
   res.json({ status: 'ok', message: 'Safety Talk API is running on Vercel!' });
 });
