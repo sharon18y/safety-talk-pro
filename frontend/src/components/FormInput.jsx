@@ -1,8 +1,12 @@
+// Simpan di: frontend/src/components/FormInput.jsx
 import { useCallback, useState, useMemo, useEffect, useRef } from 'react';
 import CloudinaryUpload from './CloudinaryUpload';
 import { UNIT_NAMES, unitByName, SHIFT_LABEL, GROUPS, UNITS } from '../data/units';
 
-const API = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/reports`;
+// Rute API: mendukung Vercel Serverless (/api/reports) maupun standalone backend
+const API = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL}/api/reports`
+  : '/api/reports';
 
 const inputCls =
   'w-full rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-4 py-3.5 text-[15px] text-gray-900 dark:text-white placeholder-[#8E8E93] outline-none transition duration-200 focus:bg-[#E5E5EA] dark:focus:bg-[#3A3A3C] focus:ring-2 focus:ring-[#007AFF]/30';
@@ -10,7 +14,6 @@ const labelCls = 'block text-[13px] font-semibold text-[#6C6C70] dark:text-[#989
 const sectionCls =
   'bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 sm:p-6 shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-black/[0.04] dark:border-white/[0.06] transition duration-200';
 
-// Tanggal hari ini menurut jam perangkat (bukan UTC), supaya laporan dini hari tidak tercatat di hari kemarin
 const todayLocal = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -26,7 +29,7 @@ const emptyForm = () => ({
   jml_hadir: '',
   jml_tidak_hadir: 0,
   foto_url: '',
-  absensi: '', // keterangan tidak hadir: teks bebas
+  absensi: '',
 });
 
 export default function FormInput() {
@@ -41,7 +44,6 @@ export default function FormInput() {
 
   const shiftUnit = unitByName[formData.unit_nama]?.shifts || ['Day'];
 
-  // Tampilkan pesan & gulir ke atas agar pesan terlihat (tombol kirim ada di paling bawah)
   const showPesan = (tipe, teks) => {
     setPesan({ tipe, teks });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -58,7 +60,6 @@ export default function FormInput() {
   };
   closePickerRef.current = closePicker;
 
-  // Saat pemilih unit terbuka: kunci scroll halaman & tutup dengan Esc
   useEffect(() => {
     if (!isPickerOpen) return;
     const prev = document.body.style.overflow;
@@ -98,7 +99,6 @@ export default function FormInput() {
         const hadir = Number(name === 'jml_hadir' ? value : updated.jml_hadir) || 0;
         updated.jml_tidak_hadir = Math.max(0, personil - hadir);
 
-        // Hapus keterangan jika tidak ada yang absen
         if (updated.jml_tidak_hadir === 0) {
           updated.absensi = '';
         }
@@ -139,7 +139,7 @@ export default function FormInput() {
         showPesan('error', resData.message || 'Gagal menyimpan laporan.');
       }
     } catch (error) {
-      showPesan('error', 'Koneksi ke backend port 5001 gagal. Pastikan server aktif.');
+      showPesan('error', 'Gagal menghubungi server backend.');
     } finally {
       setLoading(false);
     }
@@ -170,7 +170,7 @@ export default function FormInput() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Section 1: Pemilihan Unit & Shift */}
+        {/* Section 1: Unit & Shift */}
         <div className={sectionCls}>
           <div className="space-y-4">
             <div>
@@ -269,7 +269,7 @@ export default function FormInput() {
           </div>
         </div>
 
-        {/* Section 3: Data Kehadiran */}
+        {/* Section 3: Kehadiran & Catatan */}
         <div className={sectionCls}>
           <label className={labelCls}>Statistik Personil</label>
           <div className="grid grid-cols-3 gap-3">
@@ -318,7 +318,6 @@ export default function FormInput() {
             </div>
           </div>
 
-          {/* Kolom Teks Bebas Keterangan Tidak Hadir (Opsional) */}
           {Number(formData.jml_tidak_hadir) > 0 && (
             <div className="reveal mt-4 rounded-2xl bg-[#FF3B30]/[0.06] dark:bg-[#FF453A]/10 p-4 border border-[#FF3B30]/15 space-y-2">
               <label className="block text-[12px] font-bold uppercase tracking-wider text-[#D70015] dark:text-[#FF453A]">
@@ -336,7 +335,7 @@ export default function FormInput() {
           )}
         </div>
 
-        {/* Section 4: Foto Bukti Dokumentasi */}
+        {/* Section 4: Dokumentasi Kegiatan */}
         <div className={sectionCls}>
           <label className={labelCls}>Dokumentasi Safety Talk</label>
           <CloudinaryUpload onUploadSuccess={handleUploadSuccess} />
@@ -370,7 +369,7 @@ export default function FormInput() {
         </button>
       </form>
 
-      {/* iOS Action Sheet / Modal Pemilih Unit Kerja */}
+      {/* Modal Picker Unit Kerja */}
       {isPickerOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
@@ -412,7 +411,6 @@ export default function FormInput() {
                   value={searchUnit}
                   onChange={(e) => setSearchUnit(e.target.value)}
                   className="w-full bg-transparent text-[14px] text-gray-900 dark:text-white outline-none placeholder-[#8E8E93]"
-                  // Di HP jangan langsung memunculkan keyboard (menutupi daftar unit)
                   autoFocus={typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches}
                 />
                 {searchUnit && (

@@ -1,23 +1,20 @@
-// Simpan di: frontend/src/components/Login.jsx (sesuaikan dengan lokasi file Login Anda)
+// Simpan di: frontend/src/components/Login.jsx
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 
-// Gaya khusus halaman login: latar gelap kalem dengan cahaya yang bergeser sangat pelan
 const css = `
 .login-bg {
-  position: fixed; inset: 0; z-index: 35; /* di bawah menu bawah (z-40) agar tombol Dasbor tetap bisa diketuk */
+  position: fixed; inset: 0; z-index: 35;
   overflow-y: auto; overscroll-behavior: contain;
   background: linear-gradient(160deg, #14213d 0%, #0e1830 52%, #0a1020 100%);
 }
 html.dark .login-bg { background: linear-gradient(160deg, #0d1424 0%, #090e1a 55%, #05080f 100%); }
 
-/* Pinggiran sedikit gelap agar pandangan terpusat ke kartu */
 .login-bg::after {
   content: ''; position: fixed; inset: 0; z-index: 1; pointer-events: none;
   background: radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(0, 0, 0, 0.38) 100%);
 }
 
-/* Cahaya lembut: warna kalem, hanya bergerak lewat transform (ringan dan mulus) */
 .login-blob {
   position: fixed; border-radius: 9999px; pointer-events: none; will-change: transform;
   width: 70vmax; height: 70vmax;
@@ -33,20 +30,17 @@ html.dark .login-blob { opacity: 0.7; }
 @keyframes loginDrift3 { to { transform: translate3d(11vw, -9vh, 0) scale(1.1); } }
 @keyframes loginDrift4 { to { transform: translate3d(-9vw, -10vh, 0) scale(1.06); } }
 
-/* Masuk bertahap: kartu naik pelan, isinya menyusul satu per satu */
 .login-card { animation: loginCardIn 0.8s cubic-bezier(0.22, 1, 0.36, 1) both; }
 @keyframes loginCardIn { from { opacity: 0; transform: translateY(16px) scale(0.985); } to { opacity: 1; transform: none; } }
 .login-rise { animation: loginRise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; animation-delay: var(--d, 0s); }
 @keyframes loginRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-/* Getaran halus saat gagal masuk */
 .login-shake { animation: loginShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
 @keyframes loginShake {
   10%, 90% { transform: translateX(-1px); } 20%, 80% { transform: translateX(2px); }
   30%, 50%, 70% { transform: translateX(-3px); } 40%, 60% { transform: translateX(3px); }
 }
 
-/* Isian otomatis browser tetap tampil gelap dan menyatu */
 .login-input:-webkit-autofill {
   -webkit-text-fill-color: #fff;
   box-shadow: 0 0 0 1000px rgba(18, 28, 52, 0.95) inset;
@@ -69,8 +63,10 @@ export default function Login({ onLoginSuccess }) {
   const [showPass, setShowPass] = useState(false);
   const [caps, setCaps] = useState(false);
 
-  // Alamat backend: ubah lewat VITE_API_URL di file .env frontend jika bukan localhost:5001
-  const API = `${import.meta.env.VITE_API_URL || 'http://localhost:5001'}/api/auth/login`;
+  // Rute API: mendukung Vercel Serverless (/api/auth/login) maupun standalone backend
+  const API = import.meta.env.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL}/api/auth/login`
+    : '/api/auth/login';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -87,7 +83,6 @@ export default function Login({ onLoginSuccess }) {
       const data = await response.json();
 
       if (response.ok) {
-        // Simpan token ke penyimpanan lokal browser
         localStorage.setItem('safety_token', data.token);
         onLoginSuccess();
       } else {
@@ -100,7 +95,6 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
-  // Dirender lewat portal ke <body>: tidak terpengaruh animasi perpindahan halaman, dan menu bawah tetap di atasnya
   return createPortal(
     <div className="login-bg">
       <style>{css}</style>
