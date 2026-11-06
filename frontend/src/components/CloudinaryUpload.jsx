@@ -1,55 +1,58 @@
 import { useEffect, useRef } from 'react';
 
 export default function CloudinaryUpload({ onUploadSuccess }) {
-  const cloudinaryRef = useRef();
-  const widgetRef = useRef();
+  const widgetRef = useRef(null);
 
   useEffect(() => {
+    // 1. Cegah error jika script Cloudinary belum selesai dimuat oleh browser
     if (!window.cloudinary) {
-      console.error('Script Cloudinary belum termuat. Periksa koneksi internet atau tag <script> di index.html');
+      console.error('Script Cloudinary belum termuat. Pastikan tag <script> sudah ada di index.html');
       return;
     }
 
-    cloudinaryRef.current = window.cloudinary;
-    widgetRef.current = cloudinaryRef.current.createUploadWidget(
-      {
-        cloudName: 'xkcij8vr',       
-        uploadPreset: 'ml_default',  
-        
-        multiple: false, 
-        resourceType: 'image',
-        clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
-        maxFileSize: 5000000, // Tolak file awal yang lebih dari 5MB (mencegah error browser)
+    // 2. Mencegah error pembuatan widget berulang kali (React Strict Mode preventer)
+    if (!widgetRef.current) {
+      widgetRef.current = window.cloudinary.createUploadWidget(
+        {
+          cloudName: 'xkcij8vr',      
+          uploadPreset: 'ml_default', 
+          
+          multiple: false, 
+          resourceType: 'image',
+          clientAllowedFormats: ['jpg', 'jpeg', 'png', 'webp'],
+          maxFileSize: 5000000, // Tolak file awal yang lebih dari 5MB
 
-        // ==========================================
-        // FITUR KOMPRESI OTOMATIS (Mencegah storage penuh)
-        // ==========================================
-        
-        // 1. Resize gambar di browser HP sebelum dikirim (Hemat kuota internet pengguna)
-        maxImageWidth: 1200,
-        maxImageHeight: 1200,
+          // ==========================================
+          // FITUR KOMPRESI OTOMATIS (Mencegah storage penuh)
+          // ==========================================
+          
+          // A. Resize gambar di browser HP sebelum dikirim (Hemat kuota internet lapangan)
+          maxImageWidth: 1200,
+          maxImageHeight: 1200,
 
-        // 2. Transformasi otomatis di Server Cloudinary saat disimpan
-        // Mengubah format ke WebP dan kualitas Auto. 
-        // Foto kamera 3MB akan otomatis menjadi sekitar 80KB - 150KB saja tanpa pecah!
-        transformation: [
-          { quality: 'auto', fetch_format: 'webp', crop: 'limit', width: 1200 }
-        ],
-      },
-      function (error, result) {
-        if (!error && result && result.event === 'success') {
-          console.log('Upload sukses:', result.info.secure_url);
-          onUploadSuccess(result.info.secure_url);
+          // B. Transformasi otomatis di Server Cloudinary
+          // Mengubah format ke WebP kualitas Auto (Foto 3MB akan menjadi sekitar 80KB-150KB tanpa pecah)
+          transformation: [
+            { quality: 'auto', fetch_format: 'webp', crop: 'limit', width: 1200 }
+          ],
+        },
+        (error, result) => {
+          if (!error && result && result.event === 'success') {
+            console.log('Upload sukses:', result.info.secure_url);
+            onUploadSuccess(result.info.secure_url);
+          } else if (error) {
+            console.error('Cloudinary Widget Error:', error);
+          }
         }
-      }
-    );
+      );
+    }
   }, [onUploadSuccess]);
 
   const handleOpenWidget = () => {
     if (widgetRef.current) {
       widgetRef.current.open();
     } else {
-      alert('Widget upload belum siap. Tunggu sebentar atau muat ulang halaman (Ctrl+F5).');
+      alert('Sistem uploader sedang disiapkan atau koneksi tidak stabil. Tunggu sebentar atau muat ulang halaman (Ctrl+F5).');
     }
   };
 
