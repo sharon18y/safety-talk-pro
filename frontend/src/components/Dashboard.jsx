@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { UNITS, GROUPS, SHIFT_LABEL, UNIT_NAMES, unitByName } from '../data/units';
 
-// Rute API: otomatis memakai rute relatif /api/reports di Vercel Serverless
+// Rute API
 const API = import.meta.env.VITE_API_URL
   ? `${import.meta.env.VITE_API_URL}/api/reports`
   : '/api/reports';
@@ -12,16 +12,12 @@ const API = import.meta.env.VITE_API_URL
 const BULAN = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
 const HARI = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
-// Gaya bersama (iOS)
 const cardCls = 'bg-white dark:bg-[#1C1C1E] rounded-3xl shadow-[0_1px_2px_rgba(0,0,0,0.04)]';
-const inputCls =
-  'w-full rounded-xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-2.5 text-[15px] text-gray-900 dark:text-white placeholder-[#8E8E93] outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition';
+const inputCls = 'w-full rounded-xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-2.5 text-[15px] text-gray-900 dark:text-white placeholder-[#8E8E93] outline-none focus:ring-2 focus:ring-[#007AFF]/40 transition';
 const muted = 'text-[#6C6C70] dark:text-[#98989D]';
 const labelCls = `block text-[13px] font-medium ${muted} mb-1.5 ml-1`;
-const roundBtn =
-  'w-10 h-10 rounded-full grid place-items-center bg-[#767680]/15 text-gray-900 dark:text-white active:scale-90 transition shrink-0 disabled:opacity-30';
+const roundBtn = 'w-10 h-10 rounded-full grid place-items-center bg-[#767680]/15 text-gray-900 dark:text-white active:scale-90 transition shrink-0 disabled:opacity-30';
 
-// Status sebuah unit pada satu hari
 const STATE = {
   full: { glyph: '✓', color: '#34C759', text: 'text-[#1E8E3E] dark:text-[#30D158]' },
   part: { glyph: '!', color: '#FF9F0A', text: 'text-[#C93400] dark:text-[#FF9F0A]' },
@@ -29,7 +25,6 @@ const STATE = {
 };
 const ORDER = { none: 0, part: 1, full: 2 };
 
-// ---------- Helper tanggal (tanpa konversi zona waktu) ----------
 const pad = (n) => String(n).padStart(2, '0');
 const toKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const fromKey = (k) => {
@@ -47,7 +42,6 @@ const fmtLong = (k) => {
 };
 const dateOf = (r) => String(r.tanggal).slice(0, 10);
 
-// ---------- Komponen kecil ----------
 const Chevron = ({ dir }) => (
   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24">
     <path strokeLinecap="round" strokeLinejoin="round" d={dir === 'l' ? 'M15 19l-7-7 7-7' : 'M9 5l7 7-7 7'} />
@@ -139,12 +133,17 @@ function UnitCard({ r, onOpen }) {
   );
 }
 
-// ---------- Detail laporan (bottom sheet di HP, dialog di layar lebar) ----------
-function DetailSheet({ report, onClose, onSaved, onDeleted }) {
+// ---------- Detail laporan (Diperbarui dengan Animasi & Tanpa Alert Bawaan) ----------
+function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const [closing, setClosing] = useState(false);
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({});
+  
+  // State untuk animasi penghapusan
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  
   const closeRef = useRef();
 
   const close = () => {
@@ -193,6 +192,7 @@ function DetailSheet({ report, onClose, onSaved, onDeleted }) {
     const tidakHadir = Math.max(0, Number(form.jml_personil) - Number(form.jml_hadir));
     const body = { ...form, jml_tidak_hadir: tidakHadir };
     if ('absensi' in body && tidakHadir === 0) body.absensi = '';
+    
     try {
       const res = await fetch(`${API}/${report.id}`, {
         method: 'PUT',
@@ -202,29 +202,35 @@ function DetailSheet({ report, onClose, onSaved, onDeleted }) {
       if (res.ok) {
         const out = await res.json();
         onSaved(out.data || { ...report, ...body });
+        showToast('Perubahan berhasil disimpan', 'success');
         close();
       } else {
-        alert('Gagal menyimpan perubahan data.');
+        showToast('Gagal menyimpan perubahan data', 'error');
       }
     } catch {
-      alert('Terjadi kesalahan koneksi ke server.');
+      showToast('Terjadi kesalahan koneksi', 'error');
     } finally {
       setBusy(false);
     }
   };
 
-  const del = async () => {
-    if (!window.confirm('Hapus laporan ini? Tindakan ini tidak bisa dibatalkan.')) return;
+  const executeDel = async () => {
+    setIsDeleting(true);
     try {
       const res = await fetch(`${API}/${report.id}`, { method: 'DELETE' });
       if (res.ok) {
         onDeleted(report.id);
+        showToast('Laporan berhasil dihapus', 'success');
         close();
       } else {
-        alert('Gagal menghapus laporan dari database.');
+        showToast('Gagal menghapus laporan dari database', 'error');
+        setIsDeleting(false);
+        setConfirmDelete(false);
       }
     } catch {
-      alert('Terjadi kesalahan koneksi saat menghapus data.');
+      showToast('Koneksi terputus, gagal menghapus', 'error');
+      setIsDeleting(false);
+      setConfirmDelete(false);
     }
   };
 
@@ -300,14 +306,33 @@ function DetailSheet({ report, onClose, onSaved, onDeleted }) {
               </a>
             )}
 
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <button type="button" onClick={startEdit} className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition">
-                Edit
-              </button>
-              <button type="button" onClick={del} className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition">
-                Hapus
-              </button>
-            </div>
+            {/* Area Tombol dengan Animasi Hapus */}
+            {!confirmDelete ? (
+              <div className="grid grid-cols-2 gap-3 pt-1 mt-4">
+                <button type="button" onClick={startEdit} className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition">
+                  Edit
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(true)} className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition">
+                  Hapus
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 p-4 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-center fade-in">
+                <p className="text-[#D70015] dark:text-[#FF453A] font-semibold text-[14.5px] leading-tight mb-3 px-2">
+                  Yakin ingin menghapus laporan ini? Data akan hilang permanen.
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setConfirmDelete(false)} disabled={isDeleting} className="py-3 rounded-xl bg-white dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-semibold text-[15px] shadow-sm active:scale-95 transition disabled:opacity-50">
+                    Batal
+                  </button>
+                  <button type="button" onClick={executeDel} disabled={isDeleting} className="py-3 rounded-xl bg-[#FF3B30] text-white font-semibold text-[15px] flex justify-center items-center gap-2 shadow-sm active:scale-95 transition disabled:opacity-70">
+                    {isDeleting ? (
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : 'Ya, Hapus'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <form onSubmit={save} className="space-y-4">
@@ -382,6 +407,14 @@ export default function Dashboard() {
   const [sheet, setSheet] = useState(null);
   const todayRef = useRef(todayKey);
 
+  // State untuk notifikasi Toast yang elegan
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
   const fetchReports = async () => {
     try {
       const res = await fetch(API);
@@ -412,7 +445,6 @@ export default function Dashboard() {
     return () => clearInterval(t);
   }, []);
 
-  // Indeks laporan: "tanggal|unit|shift" -> laporan
   const byKey = useMemo(() => {
     const m = new Map();
     reports.forEach((r) => {
@@ -422,7 +454,6 @@ export default function Dashboard() {
     return m;
   }, [reports]);
 
-  // Status semua unit pada tanggal terpilih
   const day = useMemo(() => {
     const rows = UNITS.map((u) => {
       const slots = u.shifts.map((s) => ({ shift: s, report: byKey.get(`${date}|${u.name}|${s}`) }));
@@ -437,7 +468,6 @@ export default function Dashboard() {
     };
   }, [byKey, date]);
 
-  // Kepatuhan bulan terpilih
   const dim = new Date(month.y, month.m + 1, 0).getDate();
   const days = Array.from({ length: dim }, (_, i) => i + 1);
   const monthKey = (d) => `${month.y}-${pad(month.m + 1)}-${pad(d)}`;
@@ -562,7 +592,16 @@ export default function Dashboard() {
   })).filter((g) => g.items.length > 0);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 sm:px-6">
+    <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
+      
+      {/* Toast Notification Floating (Muncul saat berhasil hapus/edit) */}
+      {toast && (
+        <div className="fade-in fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-5 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[14.5px] font-semibold text-white tracking-wide" style={{ backgroundColor: toast.type === 'error' ? '#FF3B30' : '#34C759' }}>
+          <span className="text-lg leading-none">{toast.type === 'error' ? '!' : '✓'}</span>
+          {toast.message}
+        </div>
+      )}
+
       <div className="px-1 mb-4">
         <h1 className="text-[30px] sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">Status Safety Talk</h1>
         <p className={`text-[15px] mt-1 ${muted}`}>
@@ -795,6 +834,7 @@ export default function Dashboard() {
           onClose={() => setSheet(null)}
           onSaved={(rep) => setReports((rs) => rs.map((r) => (r.id === rep.id ? rep : r)))}
           onDeleted={(id) => setReports((rs) => rs.filter((r) => r.id !== id))}
+          showToast={showToast}
         />
       )}
     </div>
