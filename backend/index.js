@@ -53,9 +53,21 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Endpoint API
+// Endpoint API Utama
 app.use('/api/reports', reportRoutes);
 app.use('/api/auth', authRoutes);
+
+// ==========================================================
+// ENDPOINT ANTI POWER-OFF AIVEN (Untuk dipanggil Cron-Job)
+// ==========================================================
+app.get('/api/ping', async (req, res) => {
+  try {
+    await sequelize.query('SELECT 1');
+    res.status(200).json({ status: 'awake', time: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ status: 'error', message: err.message });
+  }
+});
 
 // Endpoint tes
 app.get('/api', (req, res) => {
