@@ -16,69 +16,75 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Penanda apakah tabel sudah disinkronisasi
-let isTableSynced = false;
-
-async function ensureDbReady() {
-  try {
-    // 1. Cek apakah jalur ke Aiven masih hidup (jika mati, pool otomatis membuat jalur baru)
-    await sequelize.authenticate();
-
-    // 2. Sinkronisasi tabel dan cek admin cukup dijalankan sekali saat server baru menyala
-    if (!isTableSynced) {
-      await sequelize.sync();
-      isTableSynced = true;
-
-      const adminExists = await User.findOne({ where: { username: 'admink3' } });
-      if (!adminExists) {
-        const hashedPassword = await bcrypt.hash('biringkassi2026', 10);
-        await User.create({
-          username: 'admink3',
-          password: hashedPassword,
-          role: 'superadmin'
-        });
-        console.log('>>> Akun default dibuat: Username: admink3 | Pass: biringkassi2026');
-      }
-    }
-  } catch (err) {
-    // Jika terjadi putus koneksi mendadak, reset status agar dicoba ulang pada request berikutnya
-    isTableSynced = false;
-    console.error('Koneksi MySQL database error:', err);
-  }
-}
-
-// Middleware: pastikan DB terhubung sebelum rute dieksekusi
-app.use(async (req, res, next) => {
-  await ensureDbReady();
-  next();
-});
-
 // ==========================================================
-// ENDPOINT ANTI POWER-OFF AIVEN (Mendukung /api/ping & /ping)
-// Diletakkan di atas agar langsung merespons dengan cepat
+// 1. ENDPOINT HEALTH CHECK & PING (DI ATAS MIDDLEWARE DB)
+// Diletakkan paling atas agar super ringan dan hanya menjalankan
+// 1 kali query (tanpa double check) saat dipanggil cron-job.org
 // ==========================================================
 const handlePing = async (req, res) => {
   try {
     await sequelize.query('SELECT 1');
     res.status(200).json({ status: 'awake', time: new Date().toISOString() });
   } catch (err) {
-    res.status(500).json({ status: 'error', message: err.message });
+    console.error('Ping database gagal:', err.message);
+    res.status(500).json({ status: 'error', message: 'Database belum siap' });
   }
 };
 
-app.get('/api/ping', handlePing);
-app.get('/ping', handlePing);
+app.get(['/api/ping', '/ping'], handlePing);
 
-// Endpoint API Utama
-app.use('/api/reports', reportRoutes);
-app.use('/api/auth', authRoutes);
-
-// Endpoint tes kesehatan server
 app.get(['/api', '/'], (req, res) => {
   res.json({ status: 'ok', message: 'Safety Talk API is running on Vercel!' });
 });
 
-// Pelacak error
+// ==========================================================
+// 2. INISIALISASI DATABASE (HANYA SEKALI SAAT COLD START)
+// ==========================================================
+let isTableSynced = false;
+
+async function ensureDbReady() {
+  // Jika sudah tersinkronisasi, langsung lewati agar tidak menambah jeda (latency)
+  // Urusan koneksi putus sudah ditangani otomatis oleh pool di Report.js
+  if (isTableSynced) return;
+
+  await sequelize.sync();
+  isTableSynced = true;
+
+  // Pastikan akun admin default tersedia
+  const adminExists = await User.findOne({ where: { username: 'admink3' } });
+  if (!adminExists) {
+    const defaultPass = process.env.DEFAULT_ADMIN_PASS || 'biringkassi2026';
+    const hashedPassword = await bcrypt.hash(defaultPass, 10);
+    await User.create({
+      username: 'admink3',
+      password: hashedPassword,
+      role: 'superadmin'
+    });
+    console.log('>>> Akun default admink3 berhasil disiapkan');
+  }
+}
+
+// Middleware: pastikan tabel DB siap sebelum masuk ke rute laporan/login
+app.use(async (req, res, next) => {
+  try {
+    await ensureDbReady();
+    next();
+  } catch (err) {
+    isTableSynced = false;
+    console.error('Inisialisasi MySQL database error:', err.message);
+    res.status(503).json({ 
+      message: 'Koneksi ke database sedang disiapkan ulang, silakan coba beberapa detik lagi.' 
+    });
+  }
+});
+
+// ==========================================================
+// 3. ENDPOINT API UTAMA
+// ==========================================================
+app.use('/api/reports', reportRoutes);
+app.use('/api/auth', authRoutes);
+
+// Pelacak error tak terduga
 process.on('uncaughtException', (err) => {
   console.error('\n!!! SERVER ERROR:', err);
 });
