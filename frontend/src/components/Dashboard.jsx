@@ -504,7 +504,7 @@ export default function Dashboard() {
     doc.text(`Bulan: ${BULAN[m]} ${yr}`, 14, 16);
 
     const nums = Array.from({ length: 31 }, (_, i) => i + 1);
-    const mark = (name, shift, d) => (byKey.has(`${yr}-${pad(m + 1)}-${pad(d)}|${name}|${shift}`) ? 'V' : '');
+    const mark = (name, shift, d) => (byKey.has(`${yr}-${pad(m + 1)}-${pad(d)}|${name}|${shift}`) ? 'CHECK' : '');
     const unitRows = new Set();
     const body = [];
     UNITS.forEach((u, i) => {
@@ -531,9 +531,18 @@ export default function Dashboard() {
         33: { cellWidth: 16 },
       },
       didParseCell: (d) => {
-        if (d.section === 'body' && unitRows.has(d.row.index)) {
-          d.cell.styles.fontStyle = 'bold';
-          d.cell.styles.fillColor = [242, 242, 247];
+        if (d.section === 'body') {
+          if (unitRows.has(d.row.index)) {
+            d.cell.styles.fontStyle = 'bold';
+            d.cell.styles.fillColor = [242, 242, 247];
+          }
+          if (d.cell.raw === 'CHECK') {
+            d.cell.text = ['4'];
+            d.cell.styles.font = 'zapfdingbats';
+            d.cell.styles.fontSize = 7;
+            d.cell.styles.halign = 'center';
+            d.cell.styles.valign = 'middle';
+          }
         }
       },
     });
