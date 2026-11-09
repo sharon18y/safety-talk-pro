@@ -133,7 +133,7 @@ function UnitCard({ r, onOpen }) {
   );
 }
 
-// ---------- Detail laporan (Diperbarui dengan Animasi & Tanpa Alert Bawaan) ----------
+// ---------- Detail laporan (Dengan Animasi & Toast) ----------
 function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const [closing, setClosing] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -527,7 +527,7 @@ export default function Dashboard() {
       columnStyles: {
         0: { halign: 'center', cellWidth: 7 },
         1: { cellWidth: 50 },
-        ...Object.fromEntries(nums.map((n) => [n + 1, { halign: 'center', cellWidth: 6.2, fontStyle: 'bold' }])),
+        ...Object.fromEntries(nums.map((n) => [n + 1, { halign: 'center', cellWidth: 6.2 }])),
         33: { cellWidth: 16 },
       },
       didParseCell: (d) => {
@@ -536,13 +536,27 @@ export default function Dashboard() {
             d.cell.styles.fontStyle = 'bold';
             d.cell.styles.fillColor = [242, 242, 247];
           }
+          // Kosongkan teks agar tidak ada huruf/angka yang tercetak
           if (d.cell.raw === 'CHECK') {
-            d.cell.text = ['4'];
-            d.cell.styles.font = 'zapfdingbats';
-            d.cell.styles.fontSize = 7;
-            d.cell.styles.halign = 'center';
-            d.cell.styles.valign = 'middle';
+            d.cell.text = [''];
           }
+        }
+      },
+      didDrawCell: (d) => {
+        // Menggambar simbol centang (✓) vektor langsung di kanvas PDF
+        if (d.section === 'body' && d.cell.raw === 'CHECK') {
+          const cx = d.cell.x + d.cell.width / 2;
+          const cy = d.cell.y + d.cell.height / 2;
+
+          doc.saveGraphicsState();
+          doc.setDrawColor(30, 142, 62); // Warna hijau K3 (#1E8E3E)
+          doc.setLineWidth(0.35);
+
+          // Gambar centang: titik awal kiri -> sudut bawah -> ujung kanan atas
+          doc.line(cx - 1.1, cy - 0.1, cx - 0.3, cy + 0.9);
+          doc.line(cx - 0.3, cy + 0.9, cx + 1.2, cy - 1.0);
+
+          doc.restoreGraphicsState();
         }
       },
     });
