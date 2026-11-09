@@ -16,27 +16,33 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Inisialisasi koneksi database untuk serverless
-let isDbInitialized = false;
-async function ensureDbReady() {
-  if (isDbInitialized) return;
-  try {
-    await sequelize.authenticate();
-    await sequelize.sync();
-    isDbInitialized = true;
+// Penanda apakah tabel sudah disinkronisasi
+let isTableSynced = false;
 
-    // Pastikan akun admin default tersedia
-    const adminExists = await User.findOne({ where: { username: 'admink3' } });
-    if (!adminExists) {
-      const hashedPassword = await bcrypt.hash('biringkassi2026', 10);
-      await User.create({
-        username: 'admink3',
-        password: hashedPassword,
-        role: 'superadmin'
-      });
-      console.log('>>> Akun default dibuat: Username: admink3 | Pass: biringkassi2026');
+async function ensureDbReady() {
+  try {
+    // 1. Selalu cek apakah jalur ke Aiven masih hidup (jika mati, pool akan otomatis membuat jalur baru)
+    await sequelize.authenticate();
+
+    // 2. Sinkronisasi tabel dan cek admin cukup dijalankan sekali saat server baru menyala
+    if (!isTableSynced) {
+      await sequelize.sync();
+      isTableSynced = true;
+
+      const adminExists = await User.findOne({ where: { username: 'admink3' } });
+      if (!adminExists) {
+        const hashedPassword = await bcrypt.hash('biringkassi2026', 10);
+        await User.create({
+          username: 'admink3',
+          password: hashedPassword,
+          role: 'superadmin'
+        });
+        console.log('>>> Akun default dibuat: Username: admink3 | Pass: biringkassi2026');
+      }
     }
   } catch (err) {
+    // Jika terjadi putus koneksi mendadak, reset status agar dicoba ulang pada request berikutnya
+    isTableSynced = false;
     console.error('Koneksi MySQL database error:', err);
   }
 }

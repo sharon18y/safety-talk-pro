@@ -1,3 +1,4 @@
+// Simpan di: backend/models/Report.js
 const { Sequelize, DataTypes } = require('sequelize');
 require('dotenv').config();
 
@@ -7,15 +8,27 @@ const sequelize = new Sequelize(
   process.env.DB_PASS,
   {
     host: process.env.DB_HOST,
-    port: process.env.DB_PORT || 3306, // Ditambahkan untuk Aiven
+    port: process.env.DB_PORT || 3306,
     dialect: 'mysql',
     logging: false,
-    // Ditambahkan untuk menembus keamanan SSL Aiven
+
+    // Pengaturan Pool khusus Serverless (Vercel + Aiven Free Tier)
+    pool: {
+      max: 2,          // Maksimal 2 koneksi per fungsi serverless agar limit Aiven tidak penuh
+      min: 0,          // Izinkan 0 koneksi saat sedang tidak ada yang membuka web
+      acquire: 30000,  // Waktu tunggu maksimal mencari koneksi (30 detik)
+      idle: 5000,      // Tutup koneksi secara bersih jika menganggur 5 detik (sebelum diputus paksa oleh Aiven)
+      evict: 1000      // Cek dan buang koneksi yang sudah mati setiap 1 detik
+    },
+
     dialectOptions: {
       ssl: {
         require: true,
-        rejectUnauthorized: false 
-      }
+        rejectUnauthorized: false
+      },
+      connectTimeout: 60000,   // Toleransi waktu sambung awal 60 detik
+      enableKeepAlive: true,   // Kirim sinyal detak jantung agar koneksi tidak dianggap mati
+      keepAliveInitialDelay: 10000
     }
   }
 );
