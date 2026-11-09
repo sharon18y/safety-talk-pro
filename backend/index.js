@@ -21,7 +21,7 @@ let isTableSynced = false;
 
 async function ensureDbReady() {
   try {
-    // 1. Selalu cek apakah jalur ke Aiven masih hidup (jika mati, pool akan otomatis membuat jalur baru)
+    // 1. Cek apakah jalur ke Aiven masih hidup (jika mati, pool otomatis membuat jalur baru)
     await sequelize.authenticate();
 
     // 2. Sinkronisasi tabel dan cek admin cukup dijalankan sekali saat server baru menyala
@@ -53,24 +53,28 @@ app.use(async (req, res, next) => {
   next();
 });
 
-// Endpoint API Utama
-app.use('/api/reports', reportRoutes);
-app.use('/api/auth', authRoutes);
-
 // ==========================================================
-// ENDPOINT ANTI POWER-OFF AIVEN (Untuk dipanggil Cron-Job)
+// ENDPOINT ANTI POWER-OFF AIVEN (Mendukung /api/ping & /ping)
+// Diletakkan di atas agar langsung merespons dengan cepat
 // ==========================================================
-app.get('/api/ping', async (req, res) => {
+const handlePing = async (req, res) => {
   try {
     await sequelize.query('SELECT 1');
     res.status(200).json({ status: 'awake', time: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ status: 'error', message: err.message });
   }
-});
+};
 
-// Endpoint tes
-app.get('/api', (req, res) => {
+app.get('/api/ping', handlePing);
+app.get('/ping', handlePing);
+
+// Endpoint API Utama
+app.use('/api/reports', reportRoutes);
+app.use('/api/auth', authRoutes);
+
+// Endpoint tes kesehatan server
+app.get(['/api', '/'], (req, res) => {
   res.json({ status: 'ok', message: 'Safety Talk API is running on Vercel!' });
 });
 
