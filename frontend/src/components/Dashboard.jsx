@@ -139,11 +139,12 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({});
-  
+
   // State untuk animasi penghapusan
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+  const [deleted, setDeleted] = useState(false); // true = tampilkan animasi "laporan dihapus"
+
   const closeRef = useRef();
 
   const close = () => {
@@ -192,7 +193,7 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
     const tidakHadir = Math.max(0, Number(form.jml_personil) - Number(form.jml_hadir));
     const body = { ...form, jml_tidak_hadir: tidakHadir };
     if ('absensi' in body && tidakHadir === 0) body.absensi = '';
-    
+
     try {
       const res = await fetch(`${API}/${report.id}`, {
         method: 'PUT',
@@ -221,7 +222,9 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
       if (res.ok) {
         onDeleted(report.id);
         showToast('Laporan berhasil dihapus', 'success');
-        close();
+        // Tampilkan animasi centang sebentar, baru tutup sheet dengan mulus
+        setDeleted(true);
+        setTimeout(close, 850);
       } else {
         showToast('Gagal menghapus laporan dari database', 'error');
         setIsDeleting(false);
@@ -238,6 +241,9 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const absenText = typeof report.absensi === 'string' ? report.absensi.trim() : '';
   const allowedShifts = Array.from(new Set([...(unitByName[form.unit_nama]?.shifts || ['Day', 'I', 'II', 'III']), form.shift]));
 
+  // Kurva gerak ala iOS, dipakai untuk semua transisi hapus
+  const ease = 'cubic-bezier(.32,.72,0,1)';
+
   return (
     <div
       className={`${closing ? 'fade-out' : 'fade-in'} fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4`}
@@ -251,88 +257,190 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
         <div className="sm:hidden w-10 h-1.5 rounded-full bg-[#8E8E93]/40 mx-auto mb-4" />
 
         {!editing ? (
-          <div className="space-y-4">
-            <div>
-              <p className={`text-[13px] font-medium ${muted}`}>
-                {SHIFT_LABEL[report.shift] || report.shift}, {fmtLong(dateOf(report))}
-              </p>
-              <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white mt-0.5">{report.unit_nama}</h2>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                ['Personil', report.jml_personil, 'text-gray-900 dark:text-white'],
-                ['Hadir', report.jml_hadir, STATE.full.text],
-                ['Tidak hadir', report.jml_tidak_hadir, Number(report.jml_tidak_hadir) > 0 ? STATE.none.text : muted],
-              ].map(([l, v, c]) => (
-                <div key={l} className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] py-3 text-center">
-                  <p className={`text-2xl font-bold tabular-nums ${c}`}>{v}</p>
-                  <p className={`text-[12px] font-medium ${muted}`}>{l}</p>
-                </div>
-              ))}
-            </div>
-
-            <Info label="Materi">{report.materi}</Info>
-            <Info label="Koordinator">{report.nama_koordinator}</Info>
-
-            {(absenText || absenList.length > 0) && (
+          <div className="relative">
+            {/* Isi detail: memudar & mengecil halus saat laporan sudah terhapus */}
+            <div
+              className="space-y-4"
+              style={{
+                opacity: deleted ? 0 : 1,
+                transform: deleted ? 'scale(.96)' : 'scale(1)',
+                pointerEvents: deleted ? 'none' : 'auto',
+                transition: `opacity .25s ease, transform .4s ${ease}`,
+              }}
+            >
               <div>
-                <p className={`text-[12px] font-medium ${muted} mb-1.5`}>Keterangan tidak hadir</p>
-                {absenText ? (
-                  <p className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-3 text-[14px] text-gray-900 dark:text-white whitespace-pre-wrap break-words">
-                    {absenText}
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-black/5 dark:divide-white/10 rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]">
-                    {absenList.map((a, i) => (
-                      <li key={i} className="flex justify-between gap-3 px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-white">
-                        <span>{a.nama}</span>
-                        <span className={muted}>{a.keterangan}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
-            )}
-
-            {report.foto_url && (
-              <a href={report.foto_url} target="_blank" rel="noopener noreferrer" className="block">
-                <img
-                  src={report.foto_url}
-                  alt="Dokumentasi safety talk"
-                  loading="lazy"
-                  className="w-full max-h-64 object-cover rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]"
-                />
-              </a>
-            )}
-
-            {/* Area Tombol dengan Animasi Hapus */}
-            {!confirmDelete ? (
-              <div className="grid grid-cols-2 gap-3 pt-1 mt-4">
-                <button type="button" onClick={startEdit} className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition">
-                  Edit
-                </button>
-                <button type="button" onClick={() => setConfirmDelete(true)} className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition">
-                  Hapus
-                </button>
-              </div>
-            ) : (
-              <div className="mt-4 p-4 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-center fade-in">
-                <p className="text-[#D70015] dark:text-[#FF453A] font-semibold text-[14.5px] leading-tight mb-3 px-2">
-                  Yakin ingin menghapus laporan ini? Data akan hilang permanen.
+                <p className={`text-[13px] font-medium ${muted}`}>
+                  {SHIFT_LABEL[report.shift] || report.shift}, {fmtLong(dateOf(report))}
                 </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button type="button" onClick={() => setConfirmDelete(false)} disabled={isDeleting} className="py-3 rounded-xl bg-white dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-semibold text-[15px] shadow-sm active:scale-95 transition disabled:opacity-50">
-                    Batal
-                  </button>
-                  <button type="button" onClick={executeDel} disabled={isDeleting} className="py-3 rounded-xl bg-[#FF3B30] text-white font-semibold text-[15px] flex justify-center items-center gap-2 shadow-sm active:scale-95 transition disabled:opacity-70">
-                    {isDeleting ? (
-                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    ) : 'Ya, Hapus'}
-                  </button>
+                <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white mt-0.5">{report.unit_nama}</h2>
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['Personil', report.jml_personil, 'text-gray-900 dark:text-white'],
+                  ['Hadir', report.jml_hadir, STATE.full.text],
+                  ['Tidak hadir', report.jml_tidak_hadir, Number(report.jml_tidak_hadir) > 0 ? STATE.none.text : muted],
+                ].map(([l, v, c]) => (
+                  <div key={l} className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] py-3 text-center">
+                    <p className={`text-2xl font-bold tabular-nums ${c}`}>{v}</p>
+                    <p className={`text-[12px] font-medium ${muted}`}>{l}</p>
+                  </div>
+                ))}
+              </div>
+
+              <Info label="Materi">{report.materi}</Info>
+              <Info label="Koordinator">{report.nama_koordinator}</Info>
+
+              {(absenText || absenList.length > 0) && (
+                <div>
+                  <p className={`text-[12px] font-medium ${muted} mb-1.5`}>Keterangan tidak hadir</p>
+                  {absenText ? (
+                    <p className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-3 text-[14px] text-gray-900 dark:text-white whitespace-pre-wrap break-words">
+                      {absenText}
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-black/5 dark:divide-white/10 rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]">
+                      {absenList.map((a, i) => (
+                        <li key={i} className="flex justify-between gap-3 px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-white">
+                          <span>{a.nama}</span>
+                          <span className={muted}>{a.keterangan}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+
+              {report.foto_url && (
+                <a href={report.foto_url} target="_blank" rel="noopener noreferrer" className="block">
+                  <img
+                    src={report.foto_url}
+                    alt="Dokumentasi safety talk"
+                    loading="lazy"
+                    className="w-full max-h-64 object-cover rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]"
+                  />
+                </a>
+              )}
+
+              {/* Area tombol: Edit/Hapus mengecil, konfirmasi hapus mengembang (animasi mulus) */}
+              <div className="mt-4">
+                <div
+                  aria-hidden={confirmDelete}
+                  className="grid motion-reduce:transition-none"
+                  style={{
+                    gridTemplateRows: confirmDelete ? '0fr' : '1fr',
+                    opacity: confirmDelete ? 0 : 1,
+                    transition: `grid-template-rows .4s ${ease}, opacity .25s ease`,
+                  }}
+                >
+                  <div className="overflow-hidden">
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <button
+                        type="button"
+                        tabIndex={confirmDelete ? -1 : 0}
+                        onClick={startEdit}
+                        className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        tabIndex={confirmDelete ? -1 : 0}
+                        onClick={() => setConfirmDelete(true)}
+                        className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition"
+                      >
+                        Hapus
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  aria-hidden={!confirmDelete}
+                  className="grid motion-reduce:transition-none"
+                  style={{
+                    gridTemplateRows: confirmDelete ? '1fr' : '0fr',
+                    opacity: confirmDelete ? 1 : 0,
+                    transition: `grid-template-rows .4s ${ease}, opacity .3s ease ${confirmDelete ? '.08s' : '0s'}`,
+                  }}
+                >
+                  <div className="overflow-hidden">
+                    <div
+                      className="p-4 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-center"
+                      style={{
+                        transform: confirmDelete ? 'translateY(0) scale(1)' : 'translateY(10px) scale(.97)',
+                        transition: `transform .45s ${ease}`,
+                      }}
+                    >
+                      <div className="w-11 h-11 rounded-full bg-[#FF3B30]/15 grid place-items-center mx-auto mb-2.5">
+                        <svg className="w-5 h-5 text-[#D70015] dark:text-[#FF453A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3" />
+                        </svg>
+                      </div>
+                      <p className="text-[#D70015] dark:text-[#FF453A] font-semibold text-[14.5px] leading-tight mb-3 px-2">
+                        Yakin ingin menghapus laporan ini? Data akan hilang permanen.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <button
+                          type="button"
+                          tabIndex={confirmDelete ? 0 : -1}
+                          onClick={() => setConfirmDelete(false)}
+                          disabled={isDeleting}
+                          className="py-3 rounded-xl bg-white dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-semibold text-[15px] shadow-sm active:scale-95 transition disabled:opacity-50"
+                        >
+                          Batal
+                        </button>
+                        <button
+                          type="button"
+                          tabIndex={confirmDelete ? 0 : -1}
+                          onClick={executeDel}
+                          disabled={isDeleting}
+                          className="py-3 rounded-xl bg-[#FF3B30] text-white font-semibold text-[15px] flex justify-center items-center gap-2 shadow-sm active:scale-95 transition disabled:opacity-70"
+                        >
+                          {isDeleting ? (
+                            <>
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              <span>Menghapus</span>
+                            </>
+                          ) : (
+                            'Ya, Hapus'
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Animasi sukses: lingkaran hijau membesar, lalu centang tergambar */}
+            <div
+              role="status"
+              aria-live="polite"
+              className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none"
+              style={{ opacity: deleted ? 1 : 0, transition: 'opacity .3s ease .1s' }}
+            >
+              <div
+                className="w-[76px] h-[76px] rounded-full bg-[#34C759] grid place-items-center shadow-[0_8px_24px_rgba(52,199,89,0.35)]"
+                style={{
+                  transform: deleted ? 'scale(1)' : 'scale(.5)',
+                  transition: 'transform .55s cubic-bezier(.34,1.56,.64,1) .1s',
+                }}
+              >
+                <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path
+                    d="M5 12.5l4.5 4.5L19 7.5"
+                    pathLength="1"
+                    style={{
+                      strokeDasharray: 1,
+                      strokeDashoffset: deleted ? 0 : 1,
+                      transition: 'stroke-dashoffset .4s ease-out .35s',
+                    }}
+                  />
+                </svg>
+              </div>
+              <p className="text-[17px] font-semibold text-gray-900 dark:text-white">{deleted ? 'Laporan dihapus' : ''}</p>
+            </div>
           </div>
         ) : (
           <form onSubmit={save} className="space-y-4">
@@ -616,7 +724,7 @@ export default function Dashboard() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
-      
+
       {/* Toast Notification Floating (Muncul saat berhasil hapus/edit) */}
       {toast && (
         <div className="fade-in fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-5 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[14.5px] font-semibold text-white tracking-wide" style={{ backgroundColor: toast.type === 'error' ? '#FF3B30' : '#34C759' }}>
