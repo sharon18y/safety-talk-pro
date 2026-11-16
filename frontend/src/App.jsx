@@ -5,6 +5,7 @@ import FormInput from './components/FormInput';
 import Dashboard from './components/Dashboard';
 import ThemeToggle from './components/ThemeToggle';
 import Login from './components/Login';
+import logoK3 from './assets/logo-k3.png';
 
 // Ikon Dashboard
 const IconDashboard = ({ active }) => (
@@ -46,7 +47,6 @@ class ErrorBoundary extends Component {
   }
 }
 
-// UBAH: Dasbor menjadi rute utama (/), dan Input menjadi (/input)
 const tabs = [
   { to: '/', label: 'Dasbor', Icon: IconDashboard, end: true },
   { to: '/input', label: 'Input Laporan', Icon: IconInput, end: false },
@@ -95,7 +95,6 @@ function AnimatedRoutes({ isAuthenticated, setIsAuthenticated }) {
 
 function BottomNav() {
   const { pathname } = useLocation();
-  // Tab indeks berubah berdasarkan rute aktif
   const index = pathname.startsWith('/input') ? 1 : 0;
 
   const tabCls = ({ isActive }) =>
@@ -133,11 +132,11 @@ function App() {
         <header className="sticky top-0 z-30 bg-[#F2F2F7]/50 dark:bg-black/40 backdrop-blur-2xl border-b border-black/[0.06] dark:border-white/10 pt-[env(safe-area-inset-top)]">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2.5 active:opacity-70 transition-opacity">
-              <span className="w-8 h-8 rounded-[10px] bg-gradient-to-b from-[#FF9F0A] to-[#FF6B00] text-white grid place-items-center shadow-sm">
-                <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
-                </svg>
-              </span>
+              <img 
+                src={logoK3} 
+                alt="Logo K3" 
+                className="w-8 h-8 rounded-[10px] object-contain bg-white p-0.5 shadow-sm border border-black/[0.06] dark:border-white/10" 
+              />
               <span className="text-[17px] font-bold tracking-tight text-gray-900 dark:text-white">SafetyTalk</span>
             </Link>
             
