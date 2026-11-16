@@ -89,44 +89,67 @@ function Info({ label, children }) {
 function UnitCard({ r, onOpen }) {
   const st = STATE[r.state];
   const single = r.slots.length === 1;
+  
+  // Mencari daftar shift yang belum melapor untuk pesan peringatan profesional
+  const missingShifts = r.slots
+    .filter((s) => !s.report)
+    .map((s) => SHIFT_LABEL[s.shift] || s.shift)
+    .join(', ');
+
   const text = r.state === 'full'
     ? single ? 'Sudah melapor' : 'Semua shift lengkap'
-    : r.state === 'part' ? `${r.done} dari ${r.slots.length} shift` : 'Belum melapor';
+    : r.state === 'part'
+    ? `Baru ${r.done} dari ${r.slots.length} shift ( kurang ${missingShifts} )`
+    : 'Belum ada laporan masuk';
+
   const showChips = !single || r.slots[0].report;
 
   return (
-    <div className={`${cardCls} p-4`}>
-      <div className="flex items-center gap-3">
-        <span
-          aria-hidden="true"
-          className="w-9 h-9 shrink-0 rounded-full grid place-items-center text-white font-bold text-sm"
-          style={{ backgroundColor: st.color }}
-        >
-          {st.glyph}
-        </span>
-        <div className="min-w-0">
-          <p className="font-semibold text-[15px] leading-snug text-gray-900 dark:text-white">{r.name}</p>
-          <p className={`text-[13px] font-medium ${st.text}`}>{text}</p>
+    <div className={`${cardCls} p-4 flex flex-col justify-between`}>
+      <div>
+        <div className="flex items-center gap-3">
+          <span
+            aria-hidden="true"
+            className="w-9 h-9 shrink-0 rounded-full grid place-items-center text-white font-bold text-sm"
+            style={{ backgroundColor: st.color }}
+          >
+            {st.glyph}
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold text-[15px] leading-snug text-gray-900 dark:text-white">{r.name}</p>
+            <p className={`text-[13px] font-medium ${st.text}`}>{text}</p>
+          </div>
         </div>
+
+        {showChips && (
+          <div className="flex flex-wrap gap-2 mt-3 pl-12">
+            {r.slots.map(({ shift, report }) => (
+              <button
+                key={shift}
+                type="button"
+                disabled={!report}
+                onClick={() => report && onOpen(report)}
+                className={`h-9 px-3.5 rounded-full text-[13px] font-semibold transition ${
+                  report
+                    ? 'bg-[#34C759]/15 text-[#1E8E3E] dark:text-[#30D158] active:scale-95'
+                    : 'bg-[#767680]/[0.12] text-[#6C6C70] dark:text-[#98989D]'
+                }`}
+              >
+                {report ? '✓ ' : ''}
+                {single ? 'Lihat laporan' : SHIFT_LABEL[shift]}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
-      {showChips && (
-        <div className="flex flex-wrap gap-2 mt-3 pl-12">
-          {r.slots.map(({ shift, report }) => (
-            <button
-              key={shift}
-              type="button"
-              disabled={!report}
-              onClick={() => report && onOpen(report)}
-              className={`h-9 px-3.5 rounded-full text-[13px] font-semibold transition ${
-                report
-                  ? 'bg-[#34C759]/15 text-[#1E8E3E] dark:text-[#30D158] active:scale-95'
-                  : 'bg-[#767680]/[0.12] text-[#6C6C70] dark:text-[#98989D]'
-              }`}
-            >
-              {report ? '✓ ' : ''}
-              {single ? 'Lihat laporan' : SHIFT_LABEL[shift]}
-            </button>
-          ))}
+
+      {/* Notifikasi Peringatan Profesional jika shift belum lengkap */}
+      {r.state === 'part' && (
+        <div className="mt-3 ml-12 rounded-xl bg-[#FF9F0A]/10 border border-[#FF9F0A]/25 px-3 py-2 flex items-start gap-2">
+          <span className="text-[#C93400] dark:text-[#FF9F0A] text-[13px] font-bold leading-tight mt-0.5">⚠</span>
+          <p className="text-[12px] font-medium text-[#C93400] dark:text-[#FF9F0A] leading-snug">
+            Laporan harian belum lengkap. Menunggu pelaksanaan <span className="font-semibold">{missingShifts}</span>.
+          </p>
         </div>
       )}
     </div>
@@ -139,12 +162,11 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({});
-
+  
   // State untuk animasi penghapusan
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleted, setDeleted] = useState(false); // true = tampilkan animasi "laporan dihapus"
-
+  
   const closeRef = useRef();
 
   const close = () => {
@@ -193,7 +215,7 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
     const tidakHadir = Math.max(0, Number(form.jml_personil) - Number(form.jml_hadir));
     const body = { ...form, jml_tidak_hadir: tidakHadir };
     if ('absensi' in body && tidakHadir === 0) body.absensi = '';
-
+    
     try {
       const res = await fetch(`${API}/${report.id}`, {
         method: 'PUT',
@@ -222,9 +244,7 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
       if (res.ok) {
         onDeleted(report.id);
         showToast('Laporan berhasil dihapus', 'success');
-        // Tampilkan animasi centang sebentar, baru tutup sheet dengan mulus
-        setDeleted(true);
-        setTimeout(close, 850);
+        close();
       } else {
         showToast('Gagal menghapus laporan dari database', 'error');
         setIsDeleting(false);
@@ -241,9 +261,6 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
   const absenText = typeof report.absensi === 'string' ? report.absensi.trim() : '';
   const allowedShifts = Array.from(new Set([...(unitByName[form.unit_nama]?.shifts || ['Day', 'I', 'II', 'III']), form.shift]));
 
-  // Kurva gerak ala iOS, dipakai untuk semua transisi hapus
-  const ease = 'cubic-bezier(.32,.72,0,1)';
-
   return (
     <div
       className={`${closing ? 'fade-out' : 'fade-in'} fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4`}
@@ -257,190 +274,88 @@ function DetailSheet({ report, onClose, onSaved, onDeleted, showToast }) {
         <div className="sm:hidden w-10 h-1.5 rounded-full bg-[#8E8E93]/40 mx-auto mb-4" />
 
         {!editing ? (
-          <div className="relative">
-            {/* Isi detail: memudar & mengecil halus saat laporan sudah terhapus */}
-            <div
-              className="space-y-4"
-              style={{
-                opacity: deleted ? 0 : 1,
-                transform: deleted ? 'scale(.96)' : 'scale(1)',
-                pointerEvents: deleted ? 'none' : 'auto',
-                transition: `opacity .25s ease, transform .4s ${ease}`,
-              }}
-            >
+          <div className="space-y-4">
+            <div>
+              <p className={`text-[13px] font-medium ${muted}`}>
+                {SHIFT_LABEL[report.shift] || report.shift}, {fmtLong(dateOf(report))}
+              </p>
+              <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white mt-0.5">{report.unit_nama}</h2>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                ['Personil', report.jml_personil, 'text-gray-900 dark:text-white'],
+                ['Hadir', report.jml_hadir, STATE.full.text],
+                ['Tidak hadir', report.jml_tidak_hadir, Number(report.jml_tidak_hadir) > 0 ? STATE.none.text : muted],
+              ].map(([l, v, c]) => (
+                <div key={l} className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] py-3 text-center">
+                  <p className={`text-2xl font-bold tabular-nums ${c}`}>{v}</p>
+                  <p className={`text-[12px] font-medium ${muted}`}>{l}</p>
+                </div>
+              ))}
+            </div>
+
+            <Info label="Materi">{report.materi}</Info>
+            <Info label="Koordinator">{report.nama_koordinator}</Info>
+
+            {(absenText || absenList.length > 0) && (
               <div>
-                <p className={`text-[13px] font-medium ${muted}`}>
-                  {SHIFT_LABEL[report.shift] || report.shift}, {fmtLong(dateOf(report))}
+                <p className={`text-[12px] font-medium ${muted} mb-1.5`}>Keterangan tidak hadir</p>
+                {absenText ? (
+                  <p className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-3 text-[14px] text-gray-900 dark:text-white whitespace-pre-wrap break-words">
+                    {absenText}
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-black/5 dark:divide-white/10 rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]">
+                    {absenList.map((a, i) => (
+                      <li key={i} className="flex justify-between gap-3 px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-white">
+                        <span>{a.nama}</span>
+                        <span className={muted}>{a.keterangan}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
+            {report.foto_url && (
+              <a href={report.foto_url} target="_blank" rel="noopener noreferrer" className="block">
+                <img
+                  src={report.foto_url}
+                  alt="Dokumentasi safety talk"
+                  loading="lazy"
+                  className="w-full max-h-64 object-cover rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]"
+                />
+              </a>
+            )}
+
+            {/* Area Tombol dengan Animasi Hapus */}
+            {!confirmDelete ? (
+              <div className="grid grid-cols-2 gap-3 pt-1 mt-4">
+                <button type="button" onClick={startEdit} className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition">
+                  Edit
+                </button>
+                <button type="button" onClick={() => setConfirmDelete(true)} className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition">
+                  Hapus
+                </button>
+              </div>
+            ) : (
+              <div className="mt-4 p-4 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-center fade-in">
+                <p className="text-[#D70015] dark:text-[#FF453A] font-semibold text-[14.5px] leading-tight mb-3 px-2">
+                  Yakin ingin menghapus laporan ini? Data akan hilang permanen.
                 </p>
-                <h2 className="text-xl font-bold tracking-tight text-gray-900 dark:text-white mt-0.5">{report.unit_nama}</h2>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  ['Personil', report.jml_personil, 'text-gray-900 dark:text-white'],
-                  ['Hadir', report.jml_hadir, STATE.full.text],
-                  ['Tidak hadir', report.jml_tidak_hadir, Number(report.jml_tidak_hadir) > 0 ? STATE.none.text : muted],
-                ].map(([l, v, c]) => (
-                  <div key={l} className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] py-3 text-center">
-                    <p className={`text-2xl font-bold tabular-nums ${c}`}>{v}</p>
-                    <p className={`text-[12px] font-medium ${muted}`}>{l}</p>
-                  </div>
-                ))}
-              </div>
-
-              <Info label="Materi">{report.materi}</Info>
-              <Info label="Koordinator">{report.nama_koordinator}</Info>
-
-              {(absenText || absenList.length > 0) && (
-                <div>
-                  <p className={`text-[12px] font-medium ${muted} mb-1.5`}>Keterangan tidak hadir</p>
-                  {absenText ? (
-                    <p className="rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E] px-3.5 py-3 text-[14px] text-gray-900 dark:text-white whitespace-pre-wrap break-words">
-                      {absenText}
-                    </p>
-                  ) : (
-                    <ul className="divide-y divide-black/5 dark:divide-white/10 rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]">
-                      {absenList.map((a, i) => (
-                        <li key={i} className="flex justify-between gap-3 px-3.5 py-2.5 text-[14px] text-gray-900 dark:text-white">
-                          <span>{a.nama}</span>
-                          <span className={muted}>{a.keterangan}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-
-              {report.foto_url && (
-                <a href={report.foto_url} target="_blank" rel="noopener noreferrer" className="block">
-                  <img
-                    src={report.foto_url}
-                    alt="Dokumentasi safety talk"
-                    loading="lazy"
-                    className="w-full max-h-64 object-cover rounded-2xl bg-[#F2F2F7] dark:bg-[#2C2C2E]"
-                  />
-                </a>
-              )}
-
-              {/* Area tombol: Edit/Hapus mengecil, konfirmasi hapus mengembang (animasi mulus) */}
-              <div className="mt-4">
-                <div
-                  aria-hidden={confirmDelete}
-                  className="grid motion-reduce:transition-none"
-                  style={{
-                    gridTemplateRows: confirmDelete ? '0fr' : '1fr',
-                    opacity: confirmDelete ? 0 : 1,
-                    transition: `grid-template-rows .4s ${ease}, opacity .25s ease`,
-                  }}
-                >
-                  <div className="overflow-hidden">
-                    <div className="grid grid-cols-2 gap-3 pt-1">
-                      <button
-                        type="button"
-                        tabIndex={confirmDelete ? -1 : 0}
-                        onClick={startEdit}
-                        className="py-3.5 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] font-semibold text-[16px] active:scale-[0.98] transition"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        type="button"
-                        tabIndex={confirmDelete ? -1 : 0}
-                        onClick={() => setConfirmDelete(true)}
-                        className="py-3.5 rounded-2xl bg-[#FF3B30]/[0.12] text-[#D70015] dark:text-[#FF453A] font-semibold text-[16px] active:scale-[0.98] transition"
-                      >
-                        Hapus
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                <div
-                  aria-hidden={!confirmDelete}
-                  className="grid motion-reduce:transition-none"
-                  style={{
-                    gridTemplateRows: confirmDelete ? '1fr' : '0fr',
-                    opacity: confirmDelete ? 1 : 0,
-                    transition: `grid-template-rows .4s ${ease}, opacity .3s ease ${confirmDelete ? '.08s' : '0s'}`,
-                  }}
-                >
-                  <div className="overflow-hidden">
-                    <div
-                      className="p-4 rounded-2xl bg-[#FF3B30]/10 border border-[#FF3B30]/20 text-center"
-                      style={{
-                        transform: confirmDelete ? 'translateY(0) scale(1)' : 'translateY(10px) scale(.97)',
-                        transition: `transform .45s ${ease}`,
-                      }}
-                    >
-                      <div className="w-11 h-11 rounded-full bg-[#FF3B30]/15 grid place-items-center mx-auto mb-2.5">
-                        <svg className="w-5 h-5 text-[#D70015] dark:text-[#FF453A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 002 2h6a2 2 0 002-2l1-12M9 7V4h6v3" />
-                        </svg>
-                      </div>
-                      <p className="text-[#D70015] dark:text-[#FF453A] font-semibold text-[14.5px] leading-tight mb-3 px-2">
-                        Yakin ingin menghapus laporan ini? Data akan hilang permanen.
-                      </p>
-                      <div className="grid grid-cols-2 gap-3">
-                        <button
-                          type="button"
-                          tabIndex={confirmDelete ? 0 : -1}
-                          onClick={() => setConfirmDelete(false)}
-                          disabled={isDeleting}
-                          className="py-3 rounded-xl bg-white dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-semibold text-[15px] shadow-sm active:scale-95 transition disabled:opacity-50"
-                        >
-                          Batal
-                        </button>
-                        <button
-                          type="button"
-                          tabIndex={confirmDelete ? 0 : -1}
-                          onClick={executeDel}
-                          disabled={isDeleting}
-                          className="py-3 rounded-xl bg-[#FF3B30] text-white font-semibold text-[15px] flex justify-center items-center gap-2 shadow-sm active:scale-95 transition disabled:opacity-70"
-                        >
-                          {isDeleting ? (
-                            <>
-                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                              <span>Menghapus</span>
-                            </>
-                          ) : (
-                            'Ya, Hapus'
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <button type="button" onClick={() => setConfirmDelete(false)} disabled={isDeleting} className="py-3 rounded-xl bg-white dark:bg-[#2C2C2E] text-gray-900 dark:text-white font-semibold text-[15px] shadow-sm active:scale-95 transition disabled:opacity-50">
+                    Batal
+                  </button>
+                  <button type="button" onClick={executeDel} disabled={isDeleting} className="py-3 rounded-xl bg-[#FF3B30] text-white font-semibold text-[15px] flex justify-center items-center gap-2 shadow-sm active:scale-95 transition disabled:opacity-70">
+                    {isDeleting ? (
+                      <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : 'Ya, Hapus'}
+                  </button>
                 </div>
               </div>
-            </div>
-
-            {/* Animasi sukses: lingkaran hijau membesar, lalu centang tergambar */}
-            <div
-              role="status"
-              aria-live="polite"
-              className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none"
-              style={{ opacity: deleted ? 1 : 0, transition: 'opacity .3s ease .1s' }}
-            >
-              <div
-                className="w-[76px] h-[76px] rounded-full bg-[#34C759] grid place-items-center shadow-[0_8px_24px_rgba(52,199,89,0.35)]"
-                style={{
-                  transform: deleted ? 'scale(1)' : 'scale(.5)',
-                  transition: 'transform .55s cubic-bezier(.34,1.56,.64,1) .1s',
-                }}
-              >
-                <svg className="w-9 h-9 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <path
-                    d="M5 12.5l4.5 4.5L19 7.5"
-                    pathLength="1"
-                    style={{
-                      strokeDasharray: 1,
-                      strokeDashoffset: deleted ? 0 : 1,
-                      transition: 'stroke-dashoffset .4s ease-out .35s',
-                    }}
-                  />
-                </svg>
-              </div>
-              <p className="text-[17px] font-semibold text-gray-900 dark:text-white">{deleted ? 'Laporan dihapus' : ''}</p>
-            </div>
+            )}
           </div>
         ) : (
           <form onSubmit={save} className="space-y-4">
@@ -571,6 +486,7 @@ export default function Dashboard() {
     return {
       rows,
       full: rows.filter((r) => r.state === 'full').length,
+      part: rows.filter((r) => r.state === 'part').length,
       slotsTotal: rows.reduce((a, r) => a + r.slots.length, 0),
       slotsDone: rows.reduce((a, r) => a + r.done, 0),
     };
@@ -644,23 +560,20 @@ export default function Dashboard() {
             d.cell.styles.fontStyle = 'bold';
             d.cell.styles.fillColor = [242, 242, 247];
           }
-          // Kosongkan teks agar tidak ada huruf/angka yang tercetak
           if (d.cell.raw === 'CHECK') {
             d.cell.text = [''];
           }
         }
       },
       didDrawCell: (d) => {
-        // Menggambar simbol centang (✓) vektor langsung di kanvas PDF
         if (d.section === 'body' && d.cell.raw === 'CHECK') {
           const cx = d.cell.x + d.cell.width / 2;
           const cy = d.cell.y + d.cell.height / 2;
 
           doc.saveGraphicsState();
-          doc.setDrawColor(30, 142, 62); // Warna hijau K3 (#1E8E3E)
+          doc.setDrawColor(30, 142, 62);
           doc.setLineWidth(0.35);
 
-          // Gambar centang: titik awal kiri -> sudut bawah -> ujung kanan atas
           doc.line(cx - 1.1, cy - 0.1, cx - 0.3, cy + 0.9);
           doc.line(cx - 0.3, cy + 0.9, cx + 1.2, cy - 1.0);
 
@@ -714,17 +627,30 @@ export default function Dashboard() {
   }
 
   const pct = day.slotsTotal ? Math.round((day.slotsDone / day.slotsTotal) * 100) : 0;
+  // nSudah = semua unit yang sudah setor minimal 1 shift (lengkap + sebagian)
+  const nSudah = day.rows.filter((r) => r.done > 0).length;
+  // nBelum = semua unit yang belum lengkap 100%
   const nBelum = UNITS.length - day.full;
+
   const groups = GROUPS.map((g) => ({
     ...g,
     items: day.rows
-      .filter((r) => r.group === g.id && (filter === 'semua' || (filter === 'sudah') === (r.state === 'full')))
-      .sort((a, b) => ORDER[a.state] - ORDER[b.state]),
+      .filter((r) => {
+        if (r.group !== g.id) return false;
+        if (filter === 'semua') return true;
+        if (filter === 'sudah') return r.done > 0; // Tampilkan yang sudah lengkap maupun yang baru sebagian (tanda seru)
+        return r.state !== 'full'; // Di tab 'belum', tampilkan yang belum penuh
+      })
+      .sort((a, b) =>
+        filter === 'sudah'
+          ? ORDER[b.state] - ORDER[a.state] // Di tab Sudah: yang Hijau (full) di atas, yang Tanda Seru (part) di bawahnya
+          : ORDER[a.state] - ORDER[b.state]
+      ),
   })).filter((g) => g.items.length > 0);
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 relative">
-
+      
       {/* Toast Notification Floating (Muncul saat berhasil hapus/edit) */}
       {toast && (
         <div className="fade-in fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-5 py-3 rounded-full shadow-[0_8px_30px_rgb(0,0,0,0.12)] text-[14.5px] font-semibold text-white tracking-wide" style={{ backgroundColor: toast.type === 'error' ? '#FF3B30' : '#34C759' }}>
@@ -801,9 +727,16 @@ export default function Dashboard() {
                 style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#34C759' : '#007AFF' }}
               />
             </div>
-            <p className={`text-[13px] font-medium mt-2 ${muted}`}>
-              {day.slotsDone} dari {day.slotsTotal} laporan shift sudah masuk
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-2">
+              <p className={`text-[13px] font-medium ${muted}`}>
+                {day.slotsDone} dari {day.slotsTotal} laporan shift sudah masuk
+              </p>
+              {day.part > 0 && (
+                <p className="text-[12.5px] font-semibold text-[#C93400] dark:text-[#FF9F0A]">
+                  • {day.part} unit belum lengkap semua shift
+                </p>
+              )}
+            </div>
           </div>
 
           <Segmented
@@ -811,14 +744,14 @@ export default function Dashboard() {
             onChange={setFilter}
             options={[
               { id: 'belum', label: `Belum (${nBelum})` },
-              { id: 'sudah', label: `Sudah (${day.full})` },
+              { id: 'sudah', label: `Sudah (${nSudah})` },
               { id: 'semua', label: 'Semua' },
             ]}
           />
 
           {groups.length === 0 ? (
             <div className={`${cardCls} p-10 text-center text-sm ${muted}`}>
-              {filter === 'belum' ? 'Semua unit sudah melapor lengkap.' : 'Belum ada unit yang melapor lengkap.'}
+              {filter === 'belum' ? 'Semua unit sudah melapor lengkap.' : 'Belum ada unit yang mengirim laporan.'}
             </div>
           ) : (
             groups.map((g) => (
