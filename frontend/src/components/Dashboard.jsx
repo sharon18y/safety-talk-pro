@@ -603,6 +603,138 @@ export default function Dashboard() {
     doc.save(`Monitoring_Safety_Talk_${BULAN[m]}_${yr}.pdf`);
   };
 
+  // Fungsi Unduh Excel (Matriks Ceklis Bulanan Persis seperti PDF)
+  const exportExcel = () => {
+    const { y: yr, m } = month;
+    const nums = Array.from({ length: 31 }, (_, i) => i + 1);
+    const hasReport = (name, shift, d) => byKey.has(`${yr}-${pad(m + 1)}-${pad(d)}|${name}|${shift}`);
+
+    let rowsHtml = '';
+    UNITS.forEach((u, i) => {
+      if (u.shifts.length === 1) {
+        const cells = nums
+          .map((d) => {
+            const ok = hasReport(u.name, u.shifts[0], d);
+            return `<td style="border:0.5pt solid #999999; text-align:center; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
+          })
+          .join('');
+        rowsHtml += `<tr>
+          <td style="border:0.5pt solid #999999; text-align:center;">${i + 1}</td>
+          <td style="border:0.5pt solid #999999;">${u.name}</td>
+          ${cells}
+          <td style="border:0.5pt solid #999999;"></td>
+        </tr>`;
+      } else {
+        const emptyCells = nums.map(() => `<td style="border:0.5pt solid #999999; background-color:#F2F2F7;"></td>`).join('');
+        rowsHtml += `<tr style="background-color:#F2F2F7; font-weight:bold;">
+          <td style="border:0.5pt solid #999999; text-align:center; background-color:#F2F2F7;">${i + 1}</td>
+          <td style="border:0.5pt solid #999999; background-color:#F2F2F7;">${u.name}</td>
+          ${emptyCells}
+          <td style="border:0.5pt solid #999999; background-color:#F2F2F7;"></td>
+        </tr>`;
+
+        u.shifts.forEach((s) => {
+          const cells = nums
+            .map((d) => {
+              const ok = hasReport(u.name, s, d);
+              return `<td style="border:0.5pt solid #999999; text-align:center; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
+            })
+            .join('');
+          rowsHtml += `<tr>
+            <td style="border:0.5pt solid #999999;"></td>
+            <td style="border:0.5pt solid #999999; padding-left:14px;">&nbsp;&nbsp;&nbsp;${SHIFT_LABEL[s]}</td>
+            ${cells}
+            <td style="border:0.5pt solid #999999;"></td>
+          </tr>`;
+        });
+      }
+    });
+
+    const headDays = nums
+      .map((n) => `<th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:26px;">${n}</th>`)
+      .join('');
+
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8" />
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>Monitoring ${BULAN[m]} ${yr}</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+      </head>
+      <body style="font-family: Arial, Helvetica, sans-serif; font-size: 9pt;">
+        <table border="0" cellspacing="0" cellpadding="3">
+          <tr>
+            <td colspan="34" style="text-align:center; font-size:13pt; font-weight:bold;">
+              MONITORING PELAKSANAAN SAFETY TALK PT. BIRINGKASSI RAYA
+            </td>
+          </tr>
+          <tr>
+            <td colspan="34" style="font-size:10pt; font-weight:bold;">
+              Bulan: ${BULAN[m]} ${yr}
+            </td>
+          </tr>
+          <tr><td colspan="34"></td></tr>
+          <thead>
+            <tr>
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:35px;">No</th>
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:left; width:210px;">Unit / Shift</th>
+              ${headDays}
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:90px;">Keterangan</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+          <tr><td colspan="34"></td></tr>
+          <tr>
+            <td></td>
+            <td colspan="8">Diketahui,</td>
+            <td colspan="14" style="text-align:center;">Mengetahui,</td>
+            <td colspan="11" style="text-align:center;">Dibuat,</td>
+          </tr>
+          <tr>
+            <td></td>
+            <td colspan="8">Direktur Operasi</td>
+            <td colspan="14" style="text-align:center;">Kadiv LGRC</td>
+            <td colspan="11" style="text-align:center;">Kanit K3</td>
+          </tr>
+          <tr><td colspan="34"></td></tr>
+          <tr><td colspan="34"></td></tr>
+          <tr><td colspan="34"></td></tr>
+          <tr>
+            <td></td>
+            <td colspan="8" style="font-weight:bold;">Rifki S. Pradipta, S.Kom</td>
+            <td colspan="14" style="text-align:center; font-weight:bold;">H. Ma'rang</td>
+            <td colspan="11" style="text-align:center; font-weight:bold;">Haeruddin</td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Monitoring_Safety_Talk_${BULAN[m]}_${yr}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 p-16 text-[#8E8E93]">
@@ -798,16 +930,28 @@ export default function Dashboard() {
                 {compliance.got} dari {compliance.exp} laporan, dihitung sampai hari ini
               </p>
             </div>
-            <button
-              type="button"
-              onClick={exportPDF}
-              className="inline-flex items-center justify-center gap-2 bg-[#007AFF] active:bg-[#0062CC] text-white font-semibold text-[15px] px-5 py-3 rounded-2xl shadow-[0_4px_14px_rgba(0,122,255,0.3)] active:scale-[0.98] transition"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Unduh ceklist PDF
-            </button>
+            <div className="flex flex-wrap sm:flex-nowrap gap-2.5">
+              <button
+                type="button"
+                onClick={exportExcel}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 bg-[#1E8E3E] active:bg-[#176E30] text-white font-semibold text-[14.5px] px-4 py-3 rounded-2xl shadow-[0_4px_14px_rgba(30,142,62,0.28)] active:scale-[0.98] transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                Unduh Excel
+              </button>
+              <button
+                type="button"
+                onClick={exportPDF}
+                className="flex-1 sm:flex-initial inline-flex items-center justify-center gap-2 bg-[#007AFF] active:bg-[#0062CC] text-white font-semibold text-[14.5px] px-4 py-3 rounded-2xl shadow-[0_4px_14px_rgba(0,122,255,0.3)] active:scale-[0.98] transition"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Unduh PDF
+              </button>
+            </div>
           </div>
 
           <div className={`${cardCls} overflow-hidden`}>
