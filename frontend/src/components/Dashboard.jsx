@@ -603,156 +603,131 @@ export default function Dashboard() {
     doc.save(`Monitoring_Safety_Talk_${BULAN[m]}_${yr}.pdf`);
   };
 
-  // Fungsi Unduh Excel (Otomatis Landscape & Fit 1 Halaman Kertas A4 saat diprint)
-  const exportExcel = () => {
+  // Unduh Excel (.xlsx asli, landscape A4, muat 1 lebar halaman)
+  const exportExcel = async () => {
+    const ExcelJS = (await import('exceljs')).default;
     const { y: yr, m } = month;
     const nums = Array.from({ length: 31 }, (_, i) => i + 1);
-    const hasReport = (name, shift, d) => byKey.has(`${yr}-${pad(m + 1)}-${pad(d)}|${name}|${shift}`);
+    const LAST = 34; // No + Unit + 31 hari + Keterangan
 
-    let rowsHtml = '';
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet(`Monitoring ${BULAN[m]} ${yr}`, {
+      views: [{ showGridLines: false, state: 'frozen', xSplit: 2, ySplit: 4 }],
+      pageSetup: {
+        paperSize: 9, // A4
+        orientation: 'landscape',
+        fitToPage: true,
+        fitToWidth: 1,
+        fitToHeight: 0, // otomatis; ganti ke 1 kalau mau dipaksa 1 halaman
+        horizontalCentered: true,
+        margins: { left: 0.3, right: 0.3, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 },
+      },
+    });
+    ws.pageSetup.printTitlesRow = '4:4'; // header tabel diulang jika lebih dari 1 halaman
+
+    ws.columns = [
+      { width: 5 },
+      { width: 44 },
+      ...nums.map(() => ({ width: 3.8 })),
+      { width: 16 },
+    ];
+
+    const FONT = { name: 'Arial', size: 9 };
+    const thin = { style: 'thin', color: { argb: 'FF888888' } };
+    const border = { top: thin, left: thin, bottom: thin, right: thin };
+    const GRAY = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F2F7' } };
+    const HEAD = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE6E6E6' } };
+
+    // Judul
+    ws.mergeCells(1, 1, 1, LAST);
+    const title = ws.getCell(1, 1);
+    title.value = 'MONITORING PELAKSANAAN SAFETY TALK PT. BIRINGKASSI RAYA';
+    title.font = { ...FONT, size: 13, bold: true };
+    title.alignment = { horizontal: 'center', vertical: 'middle' };
+    ws.getRow(1).height = 24;
+
+    ws.mergeCells(2, 1, 2, LAST);
+    const sub = ws.getCell(2, 1);
+    sub.value = `Bulan: ${BULAN[m]} ${yr}`;
+    sub.font = { ...FONT, size: 10, bold: true };
+    sub.alignment = { horizontal: 'left', vertical: 'middle' };
+    ws.getRow(2).height = 18;
+    ws.getRow(3).height = 6;
+
+    // Header tabel (baris 4)
+    const headVals = ['No', 'Unit / Shift', ...nums, 'Keterangan'];
+    const headRow = ws.getRow(4);
+    headRow.height = 20;
+    headVals.forEach((v, i) => {
+      const c = headRow.getCell(i + 1);
+      c.value = v;
+      c.font = { ...FONT, bold: true };
+      c.fill = HEAD;
+      c.border = border;
+      c.alignment = { horizontal: i === 1 ? 'left' : 'center', vertical: 'middle', indent: i === 1 ? 1 : 0 };
+    });
+
+    const has = (name, shift, d) => byKey.has(`${yr}-${pad(m + 1)}-${pad(d)}|${name}|${shift}`);
+
+    const addRow = ({ no, label, shift, name, group, indent }) => {
+      const row = ws.addRow([]);
+      row.height = 15;
+      for (let c = 1; c <= LAST; c++) {
+        const cell = row.getCell(c);
+        cell.border = border;
+        cell.font = { ...FONT, bold: !!group };
+        cell.alignment = { horizontal: 'center', vertical: 'middle' };
+        if (group) cell.fill = GRAY;
+      }
+      row.getCell(1).value = no ?? '';
+      const nameCell = row.getCell(2);
+      nameCell.value = label;
+      nameCell.alignment = { horizontal: 'left', vertical: 'middle', indent: indent ? 3 : 1 };
+      if (!group) {
+        nums.forEach((d, i) => {
+          if (has(name, shift, d)) {
+            const c = row.getCell(i + 3);
+            c.value = '✓';
+            c.font = { ...FONT, bold: true, color: { argb: 'FF1E8E3E' } };
+          }
+        });
+      }
+    };
+
     UNITS.forEach((u, i) => {
       if (u.shifts.length === 1) {
-        const cells = nums
-          .map((d) => {
-            const ok = hasReport(u.name, u.shifts[0], d);
-            return `<td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
-          })
-          .join('');
-        rowsHtml += `<tr style="height:15pt;">
-          <td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle;">${i + 1}</td>
-          <td style="border:0.5pt solid #888888; vertical-align:middle; white-space:nowrap;">${u.name}</td>
-          ${cells}
-          <td style="border:0.5pt solid #888888;"></td>
-        </tr>`;
+        addRow({ no: i + 1, label: u.name, shift: u.shifts[0], name: u.name });
       } else {
-        const emptyCells = nums.map(() => `<td style="border:0.5pt solid #888888; background-color:#F2F2F7;"></td>`).join('');
-        rowsHtml += `<tr style="background-color:#F2F2F7; font-weight:bold; height:15pt;">
-          <td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; background-color:#F2F2F7;">${i + 1}</td>
-          <td style="border:0.5pt solid #888888; vertical-align:middle; background-color:#F2F2F7; white-space:nowrap;">${u.name}</td>
-          ${emptyCells}
-          <td style="border:0.5pt solid #888888; background-color:#F2F2F7;"></td>
-        </tr>`;
-
-        u.shifts.forEach((s) => {
-          const cells = nums
-            .map((d) => {
-              const ok = hasReport(u.name, s, d);
-              return `<td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
-            })
-            .join('');
-          rowsHtml += `<tr style="height:14pt;">
-            <td style="border:0.5pt solid #888888;"></td>
-            <td style="border:0.5pt solid #888888; vertical-align:middle; padding-left:10px; white-space:nowrap;">&nbsp;&nbsp;&nbsp;${SHIFT_LABEL[s]}</td>
-            ${cells}
-            <td style="border:0.5pt solid #888888;"></td>
-          </tr>`;
-        });
+        addRow({ no: i + 1, label: u.name, group: true });
+        u.shifts.forEach((s) => addRow({ label: SHIFT_LABEL[s], shift: s, name: u.name, indent: true }));
       }
     });
 
-    const headDays = nums
-      .map((n) => `<th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:20pt;">${n}</th>`)
-      .join('');
+    // Tanda tangan
+    const sig = (startRow, col1, col2, a, b, c, left) => {
+      const al = { horizontal: left ? 'left' : 'center', vertical: 'middle' };
+      [[0, a, false], [1, b, false], [4, c, true]].forEach(([off, text, bold]) => {
+        const r = startRow + off;
+        if (col2 > col1) ws.mergeCells(r, col1, r, col2);
+        const cell = ws.getCell(r, col1);
+        cell.value = text;
+        cell.font = { ...FONT, bold };
+        cell.alignment = al;
+      });
+    };
+    const s = ws.lastRow.number + 2;
+    sig(s, 2, 2, 'Diketahui,', 'Direktur Operasi', 'Rifki S. Pradipta, S.Kom', true);
+    sig(s, 11, 22, 'Mengetahui,', 'Kadiv LGRC', "H. Ma'rang", false);
+    sig(s, 24, 33, 'Dibuat,', 'Kanit K3', 'Haeruddin', false);
 
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8" />
-        <style>
-          @page {
-            size: A4 landscape;
-            margin: 0.35in 0.3in 0.35in 0.3in;
-            mso-header-margin: 0.2in;
-            mso-footer-margin: 0.2in;
-            mso-page-orientation: landscape;
-          }
-          body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 7.5pt;
-          }
-          table {
-            border-collapse: collapse;
-            width: 100%;
-          }
-        </style>
-        <!--[if gte mso 9]>
-        <xml>
-          <x:ExcelWorkbook>
-            <x:ExcelWorksheets>
-              <x:ExcelWorksheet>
-                <x:Name>Monitoring ${BULAN[m]} ${yr}</x:Name>
-                <x:WorksheetOptions>
-                  <x:FitToPage/>
-                  <x:Print>
-                    <x:FitWidth>1</x:FitWidth>
-                    <x:FitHeight>1</x:FitHeight>
-                    <x:ValidPrinterInfo/>
-                    <x:PaperSizeIndex>9</x:PaperSizeIndex>
-                    <x:HorizontalResolution>600</x:HorizontalResolution>
-                    <x:VerticalResolution>600</x:VerticalResolution>
-                  </x:Print>
-                  <x:Selected/>
-                  <x:DoNotDisplayGridlines/>
-                </x:WorksheetOptions>
-              </x:ExcelWorksheet>
-            </x:ExcelWorksheets>
-          </x:ExcelWorkbook>
-        </xml>
-        <![endif]-->
-      </head>
-      <body>
-        <table border="0" cellspacing="0" cellpadding="2">
-          <tr>
-            <td colspan="34" style="text-align:center; font-size:11pt; font-weight:bold; height:20pt; vertical-align:middle;">
-              MONITORING PELAKSANAAN SAFETY TALK PT. BIRINGKASSI RAYA
-            </td>
-          </tr>
-          <tr>
-            <td colspan="34" style="font-size:8.5pt; font-weight:bold; height:16pt; vertical-align:middle;">
-              Bulan: ${BULAN[m]} ${yr}
-            </td>
-          </tr>
-          <thead>
-            <tr style="height:18pt;">
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:24pt;">No</th>
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:left; vertical-align:middle; width:165pt;">Unit / Shift</th>
-              ${headDays}
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:55pt;">Keterangan</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${rowsHtml}
-          </tbody>
-          <tr><td colspan="34" style="height:8pt;"></td></tr>
-          <tr>
-            <td></td>
-            <td colspan="6">Diketahui,</td>
-            <td colspan="15" style="text-align:center;">Mengetahui,</td>
-            <td colspan="12" style="text-align:center;">Dibuat,</td>
-          </tr>
-          <tr>
-            <td></td>
-            <td colspan="6">Direktur Operasi</td>
-            <td colspan="15" style="text-align:center;">Kadiv LGRC</td>
-            <td colspan="12" style="text-align:center;">Kanit K3</td>
-          </tr>
-          <tr><td colspan="34" style="height:26pt;"></td></tr>
-          <tr>
-            <td></td>
-            <td colspan="6" style="font-weight:bold;">Rifki S. Pradipta, S.Kom</td>
-            <td colspan="15" style="text-align:center; font-weight:bold;">H. Ma'rang</td>
-            <td colspan="12" style="text-align:center; font-weight:bold;">Haeruddin</td>
-          </tr>
-        </table>
-      </body>
-      </html>
-    `;
-
-    const blob = new Blob(['\ufeff', html], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+    const buf = await wb.xlsx.writeBuffer();
+    const blob = new Blob([buf], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `Monitoring_Safety_Talk_${BULAN[m]}_${yr}.xls`;
+    link.download = `Monitoring_Safety_Talk_${BULAN[m]}_${yr}.xlsx`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
