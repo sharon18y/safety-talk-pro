@@ -603,7 +603,7 @@ export default function Dashboard() {
     doc.save(`Monitoring_Safety_Talk_${BULAN[m]}_${yr}.pdf`);
   };
 
-  // Fungsi Unduh Excel (Matriks Ceklis Bulanan Persis seperti PDF)
+  // Fungsi Unduh Excel (Otomatis Landscape & Fit 1 Halaman Kertas A4 saat diprint)
   const exportExcel = () => {
     const { y: yr, m } = month;
     const nums = Array.from({ length: 31 }, (_, i) => i + 1);
@@ -615,49 +615,66 @@ export default function Dashboard() {
         const cells = nums
           .map((d) => {
             const ok = hasReport(u.name, u.shifts[0], d);
-            return `<td style="border:0.5pt solid #999999; text-align:center; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
+            return `<td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
           })
           .join('');
-        rowsHtml += `<tr>
-          <td style="border:0.5pt solid #999999; text-align:center;">${i + 1}</td>
-          <td style="border:0.5pt solid #999999;">${u.name}</td>
+        rowsHtml += `<tr style="height:15pt;">
+          <td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle;">${i + 1}</td>
+          <td style="border:0.5pt solid #888888; vertical-align:middle; white-space:nowrap;">${u.name}</td>
           ${cells}
-          <td style="border:0.5pt solid #999999;"></td>
+          <td style="border:0.5pt solid #888888;"></td>
         </tr>`;
       } else {
-        const emptyCells = nums.map(() => `<td style="border:0.5pt solid #999999; background-color:#F2F2F7;"></td>`).join('');
-        rowsHtml += `<tr style="background-color:#F2F2F7; font-weight:bold;">
-          <td style="border:0.5pt solid #999999; text-align:center; background-color:#F2F2F7;">${i + 1}</td>
-          <td style="border:0.5pt solid #999999; background-color:#F2F2F7;">${u.name}</td>
+        const emptyCells = nums.map(() => `<td style="border:0.5pt solid #888888; background-color:#F2F2F7;"></td>`).join('');
+        rowsHtml += `<tr style="background-color:#F2F2F7; font-weight:bold; height:15pt;">
+          <td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; background-color:#F2F2F7;">${i + 1}</td>
+          <td style="border:0.5pt solid #888888; vertical-align:middle; background-color:#F2F2F7; white-space:nowrap;">${u.name}</td>
           ${emptyCells}
-          <td style="border:0.5pt solid #999999; background-color:#F2F2F7;"></td>
+          <td style="border:0.5pt solid #888888; background-color:#F2F2F7;"></td>
         </tr>`;
 
         u.shifts.forEach((s) => {
           const cells = nums
             .map((d) => {
               const ok = hasReport(u.name, s, d);
-              return `<td style="border:0.5pt solid #999999; text-align:center; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
+              return `<td style="border:0.5pt solid #888888; text-align:center; vertical-align:middle; font-weight:bold; color:#1E8E3E;">${ok ? '&#10003;' : ''}</td>`;
             })
             .join('');
-          rowsHtml += `<tr>
-            <td style="border:0.5pt solid #999999;"></td>
-            <td style="border:0.5pt solid #999999; padding-left:14px;">&nbsp;&nbsp;&nbsp;${SHIFT_LABEL[s]}</td>
+          rowsHtml += `<tr style="height:14pt;">
+            <td style="border:0.5pt solid #888888;"></td>
+            <td style="border:0.5pt solid #888888; vertical-align:middle; padding-left:10px; white-space:nowrap;">&nbsp;&nbsp;&nbsp;${SHIFT_LABEL[s]}</td>
             ${cells}
-            <td style="border:0.5pt solid #999999;"></td>
+            <td style="border:0.5pt solid #888888;"></td>
           </tr>`;
         });
       }
     });
 
     const headDays = nums
-      .map((n) => `<th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:26px;">${n}</th>`)
+      .map((n) => `<th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:20pt;">${n}</th>`)
       .join('');
 
     const html = `
       <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
       <head>
         <meta charset="utf-8" />
+        <style>
+          @page {
+            size: A4 landscape;
+            margin: 0.35in 0.3in 0.35in 0.3in;
+            mso-header-margin: 0.2in;
+            mso-footer-margin: 0.2in;
+            mso-page-orientation: landscape;
+          }
+          body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 7.5pt;
+          }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+          }
+        </style>
         <!--[if gte mso 9]>
         <xml>
           <x:ExcelWorkbook>
@@ -665,7 +682,17 @@ export default function Dashboard() {
               <x:ExcelWorksheet>
                 <x:Name>Monitoring ${BULAN[m]} ${yr}</x:Name>
                 <x:WorksheetOptions>
-                  <x:DisplayGridlines/>
+                  <x:FitToPage/>
+                  <x:Print>
+                    <x:FitWidth>1</x:FitWidth>
+                    <x:FitHeight>1</x:FitHeight>
+                    <x:ValidPrinterInfo/>
+                    <x:PaperSizeIndex>9</x:PaperSizeIndex>
+                    <x:HorizontalResolution>600</x:HorizontalResolution>
+                    <x:VerticalResolution>600</x:VerticalResolution>
+                  </x:Print>
+                  <x:Selected/>
+                  <x:DoNotDisplayGridlines/>
                 </x:WorksheetOptions>
               </x:ExcelWorksheet>
             </x:ExcelWorksheets>
@@ -673,51 +700,48 @@ export default function Dashboard() {
         </xml>
         <![endif]-->
       </head>
-      <body style="font-family: Arial, Helvetica, sans-serif; font-size: 9pt;">
-        <table border="0" cellspacing="0" cellpadding="3">
+      <body>
+        <table border="0" cellspacing="0" cellpadding="2">
           <tr>
-            <td colspan="34" style="text-align:center; font-size:13pt; font-weight:bold;">
+            <td colspan="34" style="text-align:center; font-size:11pt; font-weight:bold; height:20pt; vertical-align:middle;">
               MONITORING PELAKSANAAN SAFETY TALK PT. BIRINGKASSI RAYA
             </td>
           </tr>
           <tr>
-            <td colspan="34" style="font-size:10pt; font-weight:bold;">
+            <td colspan="34" style="font-size:8.5pt; font-weight:bold; height:16pt; vertical-align:middle;">
               Bulan: ${BULAN[m]} ${yr}
             </td>
           </tr>
-          <tr><td colspan="34"></td></tr>
           <thead>
-            <tr>
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:35px;">No</th>
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:left; width:210px;">Unit / Shift</th>
+            <tr style="height:18pt;">
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:24pt;">No</th>
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:left; vertical-align:middle; width:165pt;">Unit / Shift</th>
               ${headDays}
-              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; width:90px;">Keterangan</th>
+              <th style="border:0.5pt solid #000000; background-color:#E6E6E6; text-align:center; vertical-align:middle; width:55pt;">Keterangan</th>
             </tr>
           </thead>
           <tbody>
             ${rowsHtml}
           </tbody>
-          <tr><td colspan="34"></td></tr>
+          <tr><td colspan="34" style="height:8pt;"></td></tr>
           <tr>
             <td></td>
-            <td colspan="8">Diketahui,</td>
-            <td colspan="14" style="text-align:center;">Mengetahui,</td>
-            <td colspan="11" style="text-align:center;">Dibuat,</td>
+            <td colspan="6">Diketahui,</td>
+            <td colspan="15" style="text-align:center;">Mengetahui,</td>
+            <td colspan="12" style="text-align:center;">Dibuat,</td>
           </tr>
           <tr>
             <td></td>
-            <td colspan="8">Direktur Operasi</td>
-            <td colspan="14" style="text-align:center;">Kadiv LGRC</td>
-            <td colspan="11" style="text-align:center;">Kanit K3</td>
+            <td colspan="6">Direktur Operasi</td>
+            <td colspan="15" style="text-align:center;">Kadiv LGRC</td>
+            <td colspan="12" style="text-align:center;">Kanit K3</td>
           </tr>
-          <tr><td colspan="34"></td></tr>
-          <tr><td colspan="34"></td></tr>
-          <tr><td colspan="34"></td></tr>
+          <tr><td colspan="34" style="height:26pt;"></td></tr>
           <tr>
             <td></td>
-            <td colspan="8" style="font-weight:bold;">Rifki S. Pradipta, S.Kom</td>
-            <td colspan="14" style="text-align:center; font-weight:bold;">H. Ma'rang</td>
-            <td colspan="11" style="text-align:center; font-weight:bold;">Haeruddin</td>
+            <td colspan="6" style="font-weight:bold;">Rifki S. Pradipta, S.Kom</td>
+            <td colspan="15" style="text-align:center; font-weight:bold;">H. Ma'rang</td>
+            <td colspan="12" style="text-align:center; font-weight:bold;">Haeruddin</td>
           </tr>
         </table>
       </body>
